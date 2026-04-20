@@ -243,7 +243,6 @@ export async function action({ request, params }) {
     const fnRes = await admin.graphql(LOOKUP_FUNCTIONS);
     const { data: fnData } = await fnRes.json();
     const fnNodes = fnData?.shopifyFunctions?.nodes ?? [];
-    console.error("[checkout-rules] action: functions available:", JSON.stringify(fnNodes));
 
     const targetApiType = isDelivery ? "delivery_customization" : "payment_customization";
     let fn = fnNodes.find((n) => n.apiType === targetApiType);
@@ -256,36 +255,28 @@ export async function action({ request, params }) {
     }
 
     if (!fn) {
-      console.error("[checkout-rules] action: no matching function found for type:", targetApiType);
       return json(
         { errors: [{ field: "functionId", message: `No ${type} function found. Available: ${fnNodes.map((n) => `${n.title} (${n.apiType})`).join(", ")}` }] },
         { status: 422 }
       );
     }
 
-    // fn.id is already the full GID from the Shopify API
-    const functionId = fn.id;
-    console.error("[checkout-rules] action: using functionId:", functionId, "from fn:", JSON.stringify(fn));
-
     const input = {
-      functionId,
+      functionId: fn.id,
       title,
       enabled,
       metafields: [metafieldInput],
     };
-    console.error("[checkout-rules] action: CREATE input:", JSON.stringify(input));
 
     if (isDelivery) {
       const res = await admin.graphql(CREATE_DELIVERY, { variables: { input } });
       const { data } = await res.json();
-      console.error("[checkout-rules] CREATE_DELIVERY result:", JSON.stringify(data));
       if (data?.deliveryCustomizationCreate?.userErrors?.length) {
         return json({ errors: data.deliveryCustomizationCreate.userErrors }, { status: 422 });
       }
     } else {
       const res = await admin.graphql(CREATE_PAYMENT, { variables: { input } });
       const { data } = await res.json();
-      console.error("[checkout-rules] CREATE_PAYMENT result:", JSON.stringify(data));
       if (data?.paymentCustomizationCreate?.userErrors?.length) {
         return json({ errors: data.paymentCustomizationCreate.userErrors }, { status: 422 });
       }

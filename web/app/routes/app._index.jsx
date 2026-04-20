@@ -35,7 +35,6 @@ const QUERY = `
         id
         title
         enabled
-        functionId
         metafield(namespace: "${DELIVERY_METAFIELD_NS}", key: "${METAFIELD_KEY}") {
           jsonValue
         }
@@ -87,30 +86,10 @@ const DELETE_PAYMENT = `
   }
 `;
 
-const FUNCTIONS_QUERY = `
-  query {
-    shopifyFunctions(first: 25) {
-      nodes {
-        id
-        title
-        apiType
-        app { id title }
-      }
-    }
-    currentAppInstallation { id app { id title } }
-  }
-`;
-
 export async function loader({ request }) {
   const { admin } = await authenticate.admin(request);
   const res = await admin.graphql(QUERY);
   const { data } = await res.json();
-
-  const fnRes = await admin.graphql(FUNCTIONS_QUERY);
-  const { data: fnData } = await fnRes.json();
-  console.log("[checkout-rules] Functions:", JSON.stringify(fnData?.shopifyFunctions?.nodes));
-  console.log("[checkout-rules] Current app:", JSON.stringify(fnData?.currentAppInstallation));
-  console.log("[checkout-rules] ALL delivery customizations:", JSON.stringify(data?.deliveryCustomizations?.nodes?.map(n => ({ id: n.id, title: n.title, functionId: n.functionId }))));
 
   const deliveryRules = (data?.deliveryCustomizations?.nodes ?? []).filter(
     (n) => n.metafield !== null
