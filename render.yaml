@@ -18,6 +18,6 @@ services:
       - key: SCOPES
         value: "read_delivery_customizations,write_delivery_customizations,read_payment_customizations,write_payment_customizations,read_shipping,read_customers,write_customers"
       - key: DELIVERY_FUNCTION_UID
-        value: "019cd4c8-52c9-7d09-9afb-271a31ba13b7"
+        value: "f500c847-9b31-c041-83e9-dd7be2d62cd831f00ec1"
       - key: PAYMENT_FUNCTION_UID
-        value: "019cd4c8-52c9-745a-944e-33cd8e4050ff"
+        value: "13f4898e-7ecb-993e-066f-6483556f095638b4eb7c"

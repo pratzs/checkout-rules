@@ -3,7 +3,7 @@ api_version = "2026-01"
 [[extensions]]
 name = "B2B Payment Rules"
 handle = "b2b-payment-rules"
-uid = "019cd4c8-52c9-745a-944e-33cd8e4050ff"
+uid = "13f4898e-7ecb-993e-066f-6483556f095638b4eb7c"
 type = "function"
 description = "Shows Net Terms for B2B and Credit Card only for B2C"
 

@@ -25,10 +25,10 @@ export const sessionStorage = shopify.sessionStorage;
 
 export const DELIVERY_FUNCTION_UID =
   process.env.DELIVERY_FUNCTION_UID ||
-  "019cd4c8-52c9-7d09-9afb-271a31ba13b7";
+  "f500c847-9b31-c041-83e9-dd7be2d62cd831f00ec1";
 export const PAYMENT_FUNCTION_UID =
   process.env.PAYMENT_FUNCTION_UID ||
-  "019cd4c8-52c9-745a-944e-33cd8e4050ff";
+  "13f4898e-7ecb-993e-066f-6483556f095638b4eb7c";
 
 export const DELIVERY_FUNCTION_GID = `gid://shopify/ShopifyFunction/${DELIVERY_FUNCTION_UID}`;
 export const PAYMENT_FUNCTION_GID = `gid://shopify/ShopifyFunction/${PAYMENT_FUNCTION_UID}`;
