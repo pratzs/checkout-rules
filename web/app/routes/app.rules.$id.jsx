@@ -433,7 +433,33 @@ function TagInput({ tags, onChange }) {
 
 // ── Method toggle row ──────────────────────────────────────────────────────
 
-function MethodRow({ method, onChange }) {
+function MethodRow({ method, index, total, onChange, onMoveUp, onMoveDown }) {
+  const arrowBtn = (label, onClick, disabled) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "24px",
+        height: "22px",
+        border: "1px solid #d1d1d1",
+        borderRadius: "4px",
+        background: disabled ? "#f6f6f7" : "#fff",
+        cursor: disabled ? "default" : "pointer",
+        color: disabled ? "#c9cccf" : "#202223",
+        fontSize: "12px",
+        lineHeight: 1,
+        padding: 0,
+      }}
+    >
+      {label === "Up" ? "▲" : "▼"}
+    </button>
+  );
+
   return (
     <Box
       paddingBlock="300"
@@ -441,9 +467,19 @@ function MethodRow({ method, onChange }) {
       background={method.visible ? "bg-surface" : "bg-surface-secondary"}
     >
       <InlineStack align="space-between" blockAlign="center">
-        <Text variant="bodyMd" fontWeight={method.visible ? "medium" : "regular"} tone={method.visible ? undefined : "subdued"}>
-          {method.title}
-        </Text>
+        <InlineStack gap="200" blockAlign="center">
+          {/* Up/down reorder arrows */}
+          <BlockStack gap="050">
+            {arrowBtn("Up", onMoveUp, index === 0)}
+            {arrowBtn("Down", onMoveDown, index === total - 1)}
+          </BlockStack>
+          <Text variant="bodyMd" fontWeight={method.visible ? "medium" : "regular"} tone={method.visible ? undefined : "subdued"}>
+            {method.title}
+            {method.visible && typeof method.order === "number" && (
+              <Text as="span" variant="bodySm" tone="subdued"> (position {method.order + 1})</Text>
+            )}
+          </Text>
+        </InlineStack>
         <InlineStack gap="300" blockAlign="center">
           <Text variant="bodySm" tone={method.visible ? "success" : "critical"}>
             {method.visible ? "Show" : "Hide"}
@@ -517,6 +553,16 @@ export default function RuleEditor() {
     );
   }, []);
 
+  const moveMethod = useCallback((index, direction) => {
+    setMethods((prev) => {
+      const next = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }, []);
+
   const handleAddMethod = useCallback(() => {
     const name = newMethodName.trim();
     if (!name || methods.some((m) => m.title === name)) return;
@@ -529,12 +575,21 @@ export default function RuleEditor() {
   }, []);
 
   const handleSave = useCallback(() => {
+    // Assign order: 0,1,2... only to visible methods, in array position order.
+    // Hidden methods get order: undefined so the function skips reordering them.
+    let visibleIdx = 0;
+    const methodsWithOrder = methods.map((m) =>
+      m.visible
+        ? { title: m.title, visible: true, order: visibleIdx++ }
+        : { title: m.title, visible: false }
+    );
+
     const config = {
       mode,
       conditionLogic,
       negate: mode === "tags" ? negate : false,
       tags: mode === "tags" ? tags : [],
-      [methodKey]: methods,
+      [methodKey]: methodsWithOrder,
     };
     const formData = new FormData();
     formData.set("title", title);
@@ -698,10 +753,10 @@ export default function RuleEditor() {
             <Box padding="400">
               <BlockStack gap="100">
                 <Text variant="headingSm" as="h2">
-                  {isDelivery ? "Hide, sort or rename shipping methods" : "Hide or rename payment methods"}
+                  {isDelivery ? "Hide or reorder shipping methods" : "Hide or reorder payment methods"}
                 </Text>
                 <Text variant="bodySm" tone="subdued">
-                  Toggle the switch to hide the method when the condition is matched.{" "}
+                  Toggle to hide/show. Use ▲▼ to set the display order at checkout — top = shown first.{" "}
                   {hiddenCount > 0 && (
                     <Badge tone="warning">{hiddenCount} hidden</Badge>
                   )}
@@ -725,7 +780,14 @@ export default function RuleEditor() {
                   <Box paddingInlineEnd="400">
                     <InlineStack align="space-between" blockAlign="center">
                       <div style={{ flex: 1 }}>
-                        <MethodRow method={method} onChange={handleMethodChange} />
+                        <MethodRow
+                          method={method}
+                          index={i}
+                          total={methods.length}
+                          onChange={handleMethodChange}
+                          onMoveUp={() => moveMethod(i, -1)}
+                          onMoveDown={() => moveMethod(i, 1)}
+                        />
                       </div>
                       <Button
                         variant="plain"

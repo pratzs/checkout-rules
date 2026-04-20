@@ -40,12 +40,27 @@ export function cartPaymentMethodsTransformRun(input) {
 
   const methodRules = config.paymentMethods ?? [];
 
+  // Pass 1 — hide methods marked visible: false
   for (const method of input.paymentMethods) {
     const methodName = method.name ?? "";
     for (const rule of methodRules) {
       if (rule.visible !== false) continue;
       if (matchesTitle(methodName, rule.title)) {
         operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
+        break;
+      }
+    }
+  }
+
+  // Pass 2 — reorder visible methods that have an explicit order index
+  const orderedRules = methodRules
+    .filter((r) => r.visible !== false && typeof r.order === "number")
+    .sort((a, b) => a.order - b.order);
+
+  for (const rule of orderedRules) {
+    for (const method of input.paymentMethods) {
+      if (matchesTitle(method.name ?? "", rule.title)) {
+        operations.push({ paymentMethodMove: { paymentMethodId: method.id, index: rule.order } });
         break;
       }
     }
