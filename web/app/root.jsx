@@ -5,6 +5,14 @@ import {
   Scripts,
   ScrollRestoration,
 } from "@remix-run/react";
+import { json } from "@remix-run/node";
+import { addDocumentResponseHeaders } from "./shopify.server";
+
+export async function loader({ request }) {
+  const headers = new Headers();
+  addDocumentResponseHeaders(request, headers);
+  return json({}, { headers });
+}
 
 export default function App() {
   return (
