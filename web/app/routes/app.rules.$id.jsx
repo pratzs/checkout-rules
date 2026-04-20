@@ -136,14 +136,16 @@ const SET_METAFIELD = `
 // ── Loader ─────────────────────────────────────────────────────────────────
 
 async function fetchPaymentMethods(session) {
+  const url = `https://${session.shop}/admin/api/${apiVersion}/payment_gateways.json`;
+  console.error("[checkout-rules] fetchPaymentMethods url:", url, "hasToken:", !!session.accessToken);
   try {
-    const res = await fetch(
-      `https://${session.shop}/admin/api/${apiVersion}/payment_gateways.json`,
-      { headers: { "X-Shopify-Access-Token": session.accessToken } }
-    );
+    const res = await fetch(url, { headers: { "X-Shopify-Access-Token": session.accessToken } });
+    console.error("[checkout-rules] fetchPaymentMethods status:", res.status);
     const json = await res.json();
+    console.error("[checkout-rules] fetchPaymentMethods body:", JSON.stringify(json));
     return (json.payment_gateways ?? []).map((g) => g.name).sort();
-  } catch {
+  } catch (e) {
+    console.error("[checkout-rules] fetchPaymentMethods error:", e);
     return [];
   }
 }
