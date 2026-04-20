@@ -27,7 +27,6 @@ import {
 import { useState, useCallback, useRef } from "react";
 import {
   authenticate,
-  apiVersion,
   DELIVERY_METAFIELD_NS,
   PAYMENT_METAFIELD_NS,
   METAFIELD_KEY,
@@ -136,16 +135,14 @@ const SET_METAFIELD = `
 // ── Loader ─────────────────────────────────────────────────────────────────
 
 async function fetchPaymentMethods(session) {
-  const url = `https://${session.shop}/admin/api/${apiVersion}/payment_gateways.json`;
-  console.error("[checkout-rules] fetchPaymentMethods url:", url, "hasToken:", !!session.accessToken);
+  // payment_gateways REST endpoint removed in API 2025-01+ — pin to last known good version
+  const url = `https://${session.shop}/admin/api/2024-07/payment_gateways.json`;
   try {
     const res = await fetch(url, { headers: { "X-Shopify-Access-Token": session.accessToken } });
-    console.error("[checkout-rules] fetchPaymentMethods status:", res.status);
+    if (!res.ok) return [];
     const json = await res.json();
-    console.error("[checkout-rules] fetchPaymentMethods body:", JSON.stringify(json));
     return (json.payment_gateways ?? []).map((g) => g.name).sort();
-  } catch (e) {
-    console.error("[checkout-rules] fetchPaymentMethods error:", e);
+  } catch {
     return [];
   }
 }
