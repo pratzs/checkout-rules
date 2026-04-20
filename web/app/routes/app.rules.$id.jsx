@@ -244,12 +244,14 @@ export async function action({ request, params }) {
     if (isDelivery) {
       const res = await admin.graphql(CREATE_DELIVERY, { variables: { input } });
       const { data } = await res.json();
+      console.error("[checkout-rules] CREATE_DELIVERY result:", JSON.stringify(data));
       if (data?.deliveryCustomizationCreate?.userErrors?.length) {
         return json({ errors: data.deliveryCustomizationCreate.userErrors }, { status: 422 });
       }
     } else {
       const res = await admin.graphql(CREATE_PAYMENT, { variables: { input } });
       const { data } = await res.json();
+      console.error("[checkout-rules] CREATE_PAYMENT result:", JSON.stringify(data));
       if (data?.paymentCustomizationCreate?.userErrors?.length) {
         return json({ errors: data.paymentCustomizationCreate.userErrors }, { status: 422 });
       }
