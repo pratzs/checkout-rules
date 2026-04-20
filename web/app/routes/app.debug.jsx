@@ -6,6 +6,7 @@ import {
 } from "@shopify/polaris";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
+import { syncSingleCustomer, getAllRuleTags } from "../utils/sync.server";
 
 const FUNCTIONS_QUERY = `
   query Diagnose {
@@ -85,6 +86,22 @@ export async function action({ request }) {
     return json({ intent: "clear", ok: true });
   }
 
+  if (intent === "sync") {
+    // Sync a single customer's groups metafield to their current Shopify tags
+    const customerId = formData.get("customerId");
+    const rawTags = formData.get("customerTags"); // comma-separated
+    const customerTags = rawTags ? rawTags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+    const allRuleTags = await getAllRuleTags(admin);
+    await syncSingleCustomer(admin, customerId.replace("gid://shopify/Customer/", ""), customerTags, allRuleTags);
+    // Re-fetch customer to show updated state
+    const res = await admin.graphql(CUSTOMER_LOOKUP, {
+      variables: { email: `id:${customerId.replace("gid://shopify/Customer/", "")}` },
+    });
+    const { data } = await res.json();
+    // Fall back to a simple success response — user can re-lookup to verify
+    return json({ intent: "synced", customerId, synced: true, allRuleTags });
+  }
+
   return json({ ok: false });
 }
 
@@ -101,6 +118,7 @@ export default function Debug() {
 
   const lookupResult = fetcher.data?.intent === "lookup" ? fetcher.data.customer : undefined;
   const cleared = fetcher.data?.intent === "clear";
+  const synced = fetcher.data?.intent === "synced";
 
   return (
     <Page title="Debug — Function &amp; Customer State">
@@ -132,6 +150,14 @@ export default function Debug() {
 
             {cleared && (
               <Banner tone="success">Groups metafield cleared — customer now treated as B2C. Re-test checkout.</Banner>
+            )}
+
+            {synced && (
+              <Banner tone="success">
+                Customer groups metafield synced to their current Shopify tags.
+                Matched rule tags: [{(fetcher.data?.allRuleTags ?? []).join(", ")}].
+                Re-lookup to verify, then re-test checkout.
+              </Banner>
             )}
 
             {lookupResult === null && (
@@ -173,21 +199,44 @@ export default function Debug() {
                       <Text variant="bodySm" tone="subdued">
                         Raw: {lookupResult.groupsMetafield.value}
                       </Text>
-                      {Array.isArray(lookupResult.groupsMetafield.jsonValue) &&
-                        lookupResult.groupsMetafield.jsonValue.length > 0 && (
-                          <fetcher.Form method="post">
-                            <input type="hidden" name="intent" value="clear" />
-                            <input type="hidden" name="customerId" value={lookupResult.id} />
-                            <Button tone="critical" submit>
-                              Clear stale metafield → reset to B2C
-                            </Button>
-                          </fetcher.Form>
-                        )}
+                      <InlineStack gap="200">
+                        {Array.isArray(lookupResult.groupsMetafield.jsonValue) &&
+                          lookupResult.groupsMetafield.jsonValue.length > 0 && (
+                            <fetcher.Form method="post">
+                              <input type="hidden" name="intent" value="clear" />
+                              <input type="hidden" name="customerId" value={lookupResult.id} />
+                              <Button tone="critical" submit>
+                                Clear stale metafield → reset to []
+                              </Button>
+                            </fetcher.Form>
+                          )}
+                        <fetcher.Form method="post">
+                          <input type="hidden" name="intent" value="sync" />
+                          <input type="hidden" name="customerId" value={lookupResult.id} />
+                          <input type="hidden" name="customerTags" value={lookupResult.tags.join(",")} />
+                          <Button tone="success" submit loading={fetcher.state !== "idle"}>
+                            Sync metafield → current tags
+                          </Button>
+                        </fetcher.Form>
+                      </InlineStack>
                     </BlockStack>
                   ) : (
-                    <Text variant="bodySm" tone="success">
-                      ✓ No groups metafield set — function reads this as [] (no corporate tags). B2C rule WILL apply.
-                    </Text>
+                    <BlockStack gap="100">
+                      <Text variant="bodySm" tone="subdued">
+                        No groups metafield set — function reads this as [] (no corporate tags).
+                      </Text>
+                      <Text variant="bodySm">
+                        If this customer has corporate tags, click Sync to set their groups now.
+                      </Text>
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="intent" value="sync" />
+                        <input type="hidden" name="customerId" value={lookupResult.id} />
+                        <input type="hidden" name="customerTags" value={lookupResult.tags.join(",")} />
+                        <Button tone="success" submit loading={fetcher.state !== "idle"}>
+                          Sync metafield → current tags
+                        </Button>
+                      </fetcher.Form>
+                    </BlockStack>
                   )}
                 </BlockStack>
               </Box>
