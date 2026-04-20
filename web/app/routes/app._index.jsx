@@ -85,10 +85,22 @@ const DELETE_PAYMENT = `
   }
 `;
 
+const FUNCTIONS_QUERY = `
+  query {
+    shopifyFunctions(first: 25) {
+      nodes { id title apiType }
+    }
+  }
+`;
+
 export async function loader({ request }) {
   const { admin } = await authenticate.admin(request);
   const res = await admin.graphql(QUERY);
   const { data } = await res.json();
+
+  const fnRes = await admin.graphql(FUNCTIONS_QUERY);
+  const { data: fnData } = await fnRes.json();
+  console.log("[checkout-rules] Registered functions:", JSON.stringify(fnData?.shopifyFunctions?.nodes));
 
   const deliveryRules = (data?.deliveryCustomizations?.nodes ?? []).filter(
     (n) => n.metafield !== null
