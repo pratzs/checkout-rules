@@ -27,6 +27,7 @@ import {
 import { useState, useCallback, useRef } from "react";
 import {
   authenticate,
+  apiVersion,
   DELIVERY_METAFIELD_NS,
   PAYMENT_METAFIELD_NS,
   METAFIELD_KEY,
@@ -134,8 +135,21 @@ const SET_METAFIELD = `
 
 // ── Loader ─────────────────────────────────────────────────────────────────
 
+async function fetchPaymentMethods(session) {
+  try {
+    const res = await fetch(
+      `https://${session.shop}/admin/api/${apiVersion}/payment_gateways.json`,
+      { headers: { "X-Shopify-Access-Token": session.accessToken } }
+    );
+    const json = await res.json();
+    return (json.payment_gateways ?? []).map((g) => g.name).sort();
+  } catch {
+    return [];
+  }
+}
+
 export async function loader({ request, params }) {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { id } = params;
 
   if (id === "new-delivery") {
@@ -152,12 +166,13 @@ export async function loader({ request, params }) {
   }
 
   if (id === "new-payment") {
+    const paymentMethods = await fetchPaymentMethods(session);
     return json({
       isNew: true,
       type: "payment",
       customization: null,
-      config: { mode: "tags", conditionLogic: "any", tags: [], paymentMethods: [] },
-      availableMethods: [],
+      config: { mode: "tags", conditionLogic: "any", tags: [], paymentMethods: paymentMethods.map((m) => ({ title: m, visible: true })) },
+      availableMethods: paymentMethods,
     });
   }
 
@@ -187,7 +202,16 @@ export async function loader({ request, params }) {
     const { data } = await res.json();
     const customization = data?.paymentCustomization;
     const config = customization?.metafield?.jsonValue ?? { mode: "companies", conditionLogic: "any", tags: [], paymentMethods: [] };
-    return json({ isNew: false, type: "payment", customization, config, availableMethods: [] });
+
+    const paymentMethods = await fetchPaymentMethods(session);
+    const existingTitles = new Set((config.paymentMethods ?? []).map((m) => m.title));
+    paymentMethods.forEach((m) => {
+      if (!existingTitles.has(m)) {
+        config.paymentMethods = [...(config.paymentMethods ?? []), { title: m, visible: true }];
+      }
+    });
+
+    return json({ isNew: false, type: "payment", customization, config, availableMethods: paymentMethods });
   }
 }
 
