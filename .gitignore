@@ -23,6 +23,7 @@ extensions/*/dist
 web/build/
 web/.cache/
 web/database.sqlite
+web/sessions.db
 web/node_modules/
 
 # Claude memory
