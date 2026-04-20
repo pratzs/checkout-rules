@@ -10,7 +10,7 @@ automatically_update_urls_on_dev = true
 dev_store_url = ""
 
 [access_scopes]
-scopes = "read_delivery_customizations,write_delivery_customizations,read_payment_customizations,write_payment_customizations,read_payment_gateways,read_shipping,read_customers,write_customers"
+scopes = "read_delivery_customizations,write_delivery_customizations,read_payment_customizations,write_payment_customizations,read_shipping,read_customers,write_customers"
 
 [auth]
 redirect_urls = [

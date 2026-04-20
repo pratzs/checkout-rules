@@ -27,7 +27,6 @@ import {
 import { useState, useCallback, useRef } from "react";
 import {
   authenticate,
-  apiVersion,
   DELIVERY_METAFIELD_NS,
   PAYMENT_METAFIELD_NS,
   METAFIELD_KEY,
@@ -135,20 +134,33 @@ const SET_METAFIELD = `
 
 // ── Loader ─────────────────────────────────────────────────────────────────
 
-async function fetchPaymentMethods(session) {
-  const url = `https://${session.shop}/admin/api/${apiVersion}/payment_gateways.json`;
+async function fetchPaymentMethods(admin) {
+  // payment_gateways REST endpoint requires read_payment_gateways scope.
+  // We get what we can from GraphQL (digital wallets + payment terms) as a starting point.
   try {
-    const res = await fetch(url, { headers: { "X-Shopify-Access-Token": session.accessToken } });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return (json.payment_gateways ?? []).map((g) => g.name).sort();
+    const res = await admin.graphql(`
+      query {
+        shop { paymentSettings { supportedDigitalWallets } }
+        paymentTermsTemplates { name }
+      }
+    `);
+    const { data } = await res.json();
+    const walletMap = {
+      APPLE_PAY: "Apple Pay", GOOGLE_PAY: "Google Pay",
+      SHOPIFY_PAY: "Shop Pay", AMAZON_PAY: "Amazon Pay",
+      FACEBOOK_PAY: "Facebook Pay",
+    };
+    const wallets = (data?.shop?.paymentSettings?.supportedDigitalWallets ?? [])
+      .map((w) => walletMap[w] ?? w);
+    const terms = (data?.paymentTermsTemplates ?? []).map((t) => t.name);
+    return [...new Set([...wallets, ...terms])].sort();
   } catch {
     return [];
   }
 }
 
 export async function loader({ request, params }) {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
   const { id } = params;
 
   if (id === "new-delivery") {
@@ -165,7 +177,7 @@ export async function loader({ request, params }) {
   }
 
   if (id === "new-payment") {
-    const paymentMethods = await fetchPaymentMethods(session);
+    const paymentMethods = await fetchPaymentMethods(admin);
     return json({
       isNew: true,
       type: "payment",
@@ -202,7 +214,7 @@ export async function loader({ request, params }) {
     const customization = data?.paymentCustomization;
     const config = customization?.metafield?.jsonValue ?? { mode: "companies", conditionLogic: "any", tags: [], paymentMethods: [] };
 
-    const paymentMethods = await fetchPaymentMethods(session);
+    const paymentMethods = await fetchPaymentMethods(admin);
     const existingTitles = new Set((config.paymentMethods ?? []).map((m) => m.title));
     paymentMethods.forEach((m) => {
       if (!existingTitles.has(m)) {
