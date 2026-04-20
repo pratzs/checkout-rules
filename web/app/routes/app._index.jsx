@@ -297,7 +297,8 @@ export default function Index() {
               </Text>
               {syncFetcher.data?.synced != null && (
                 <Text as="p" tone="success">
-                  ✓ Synced {syncFetcher.data.synced} customer{syncFetcher.data.synced !== 1 ? "s" : ""} successfully.
+                  ✓ Synced {syncFetcher.data.synced} customer{syncFetcher.data.synced !== 1 ? "s" : ""} with active tags.
+                  {syncFetcher.data.cleared > 0 && ` Cleared stale data for ${syncFetcher.data.cleared} customer${syncFetcher.data.cleared !== 1 ? "s" : ""} whose tags were removed.`}
                 </Text>
               )}
             </BlockStack>
