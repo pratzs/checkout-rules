@@ -1,0 +1,25 @@
+query CartPaymentMethodsTransformRunInput {
+  cart {
+    buyerIdentity {
+      purchasingCompany {
+        company {
+          id
+        }
+      }
+      customer {
+        metafield(namespace: "$app:checkout-rules", key: "groups") {
+          jsonValue
+        }
+      }
+    }
+  }
+  paymentMethods {
+    id
+    name
+  }
+  paymentCustomization {
+    metafield(namespace: "$app:b2b-payment-rules", key: "function-configuration") {
+      jsonValue
+    }
+  }
+}

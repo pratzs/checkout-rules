@@ -1,0 +1,38 @@
+# Environment Configuration
+.env
+.env.*
+
+# Dependency directory
+node_modules
+
+# Test coverage directory
+coverage
+
+# Ignore Apple macOS Desktop Services Store
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# extensions build output
+extensions/*/build
+extensions/*/dist
+
+# Web app build and runtime artifacts
+web/build/
+web/.cache/
+web/database.sqlite
+web/node_modules/
+
+# Claude memory
+.claude/
+
+# lock files
+
+
+
+
+# Ignore shopify files created during app dev
+.shopify/*
+.shopify.lock

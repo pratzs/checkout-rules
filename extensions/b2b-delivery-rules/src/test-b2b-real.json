@@ -1,0 +1,26 @@
+{
+  "cart": {
+    "buyerIdentity": {
+      "purchasingCompany": {
+        "company": { "id": "gid://shopify/Company/123" }
+      }
+    },
+    "deliveryGroups": [{
+      "deliveryOptions": [
+        { "handle": "free-shipping", "title": "Free Shipping" },
+        { "handle": "standard-shipping", "title": "Standard Shipping" },
+        { "handle": "free-mobil", "title": "Free Mobil Shipping" },
+        { "handle": "free-caltex", "title": "Free Caltex Shipping" },
+        { "handle": "fresh-choice-free", "title": "Fresh Choice Free Shipping" },
+        { "handle": "b2b-worthy", "title": "B2B Worthy Customers" },
+        { "handle": "free-nationwide", "title": "Free Nation Wide Shipping" },
+        { "handle": "standard-nationwide", "title": "Standard Nationwide Shipping" },
+        { "handle": "free-mobil-nationwide", "title": "Free Mobil Nationwide Shipping" },
+        { "handle": "free-caltex-nationwide", "title": "Free Caltex Nationwide Shipping" },
+        { "handle": "fresh-choice-nationwide", "title": "Fresh Choice Nationwide Free Shipping" },
+        { "handle": "b2b-worthy-national", "title": "B2B Worthy Customers National" },
+        { "handle": "international", "title": "International Shipping" }
+      ]
+    }]
+  }
+}

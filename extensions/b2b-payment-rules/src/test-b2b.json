@@ -1,0 +1,14 @@
+{
+  "cart": {
+    "buyerIdentity": {
+      "purchasingCompany": {
+        "company": { "id": "gid://shopify/Company/123" }
+      }
+    }
+  },
+  "paymentMethods": [
+    { "handle": "credit-card", "name": "Credit Card" },
+    { "handle": "net-terms", "name": "Net Payment Terms" },
+    { "handle": "invoice", "name": "Pay by Invoice" }
+  ]
+}

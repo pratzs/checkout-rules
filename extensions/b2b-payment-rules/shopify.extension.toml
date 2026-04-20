@@ -1,0 +1,17 @@
+api_version = "2026-01"
+
+[[extensions]]
+name = "B2B Payment Rules"
+handle = "b2b-payment-rules"
+uid = "13f4898e-7ecb-993e-066f-6483556f095638b4eb7c"
+type = "function"
+description = "Shows Net Terms for B2B and Credit Card only for B2C"
+
+  [[extensions.targeting]]
+  target = "cart.payment-methods.transform.run"
+  input_query = "src/cart_payment_methods_transform_run.graphql"
+  export = "cart-payment-methods-transform-run"
+
+  [extensions.build]
+  command = ""
+  path = "dist/function.wasm"

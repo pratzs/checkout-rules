@@ -1,0 +1,14 @@
+{
+  "cart": {
+    "buyerIdentity": {
+      "purchasingCompany": null
+    },
+    "deliveryGroups": [{
+      "deliveryOptions": [
+        { "handle": "free-ship", "title": "Free Shipping" },
+        { "handle": "paid-ship", "title": "Standard Shipping" },
+        { "handle": "express", "title": "Express Shipping" }
+      ]
+    }]
+  }
+}

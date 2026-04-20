@@ -1,0 +1,31 @@
+{
+  "name": "checkout-rules-web",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "remix vite:build",
+    "dev": "shopify app dev",
+    "start": "remix-serve ./build/server/index.js",
+    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint ."
+  },
+  "dependencies": {
+    "@remix-run/node": "^2.15.3",
+    "@remix-run/react": "^2.15.3",
+    "@remix-run/serve": "^2.15.3",
+    "@shopify/app-bridge-react": "^4.1.8",
+    "@shopify/polaris": "^13.9.3",
+    "@shopify/shopify-app-remix": "^3.6.0",
+    "@shopify/shopify-app-session-storage-memory": "^4.0.3",
+    "isbot": "^4.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "^2.15.3",
+    "vite": "^5.4.11",
+    "vite-tsconfig-paths": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=18.20.0"
+  }
+}

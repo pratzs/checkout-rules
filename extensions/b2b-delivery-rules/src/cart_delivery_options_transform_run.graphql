@@ -1,0 +1,27 @@
+query CartDeliveryOptionsTransformRunInput {
+  cart {
+    buyerIdentity {
+      purchasingCompany {
+        company {
+          id
+        }
+      }
+      customer {
+        metafield(namespace: "$app:checkout-rules", key: "groups") {
+          jsonValue
+        }
+      }
+    }
+    deliveryGroups {
+      deliveryOptions {
+        handle
+        title
+      }
+    }
+  }
+  deliveryCustomization {
+    metafield(namespace: "$app:b2b-delivery-rules", key: "function-configuration") {
+      jsonValue
+    }
+  }
+}

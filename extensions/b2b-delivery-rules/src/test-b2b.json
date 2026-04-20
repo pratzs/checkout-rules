@@ -1,0 +1,16 @@
+{
+  "cart": {
+    "buyerIdentity": {
+      "purchasingCompany": {
+        "company": { "id": "gid://shopify/Company/123" }
+      }
+    },
+    "deliveryGroups": [{
+      "deliveryOptions": [
+        { "handle": "free-ship", "title": "Free Shipping" },
+        { "handle": "paid-ship", "title": "Standard Shipping" },
+        { "handle": "express", "title": "Express Shipping" }
+      ]
+    }]
+  }
+}
