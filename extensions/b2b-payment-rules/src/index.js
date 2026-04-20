@@ -35,7 +35,8 @@ export function cartPaymentMethodsTransformRun(input) {
       ? ruleTags.every((tag) => customerGroups.includes(tag))
       : ruleTags.some((tag) => customerGroups.includes(tag));
 
-  if (!matches) return { operations };
+  const shouldApply = config.negate ? !matches : matches;
+  if (!shouldApply) return { operations };
 
   const methodRules = config.paymentMethods ?? [];
 

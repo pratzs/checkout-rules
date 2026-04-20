@@ -126,6 +126,7 @@ function RuleCard({ rule, type, onEdit, onDelete, onToggle }) {
   const config = rule.metafield?.jsonValue ?? {};
   const mode = config.mode ?? "companies";
   const tags = config.tags ?? [];
+  const negate = config.negate ?? false;
 
   return (
     <Box padding="400" background="bg-surface" borderRadius="200">
@@ -141,12 +142,15 @@ function RuleCard({ rule, type, onEdit, onDelete, onToggle }) {
             <Badge tone={mode === "tags" ? "info" : "attention"}>
               {mode === "companies" ? "Companies mode" : "Tags mode"}
             </Badge>
+            {mode === "tags" && negate && (
+              <Badge tone="warning">Inverted (B2C)</Badge>
+            )}
           </InlineStack>
 
           {mode === "tags" && tags.length > 0 && (
             <InlineStack gap="100" wrap>
               <Text variant="bodySm" tone="subdued">
-                Tags:
+                {negate ? "Without tags:" : "Tags:"}
               </Text>
               {tags.map((tag) => (
                 <Badge key={tag}>{tag}</Badge>

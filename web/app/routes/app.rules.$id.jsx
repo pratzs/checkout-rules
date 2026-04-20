@@ -437,6 +437,7 @@ export default function RuleEditor() {
   const [enabled, setEnabled] = useState(customization?.enabled ?? true);
   const [mode, setMode] = useState(initialConfig?.mode ?? "tags");
   const [conditionLogic, setConditionLogic] = useState(initialConfig?.conditionLogic ?? "any");
+  const [negate, setNegate] = useState(initialConfig?.negate ?? false);
   const [tags, setTags] = useState(initialConfig?.tags ?? []);
   const [methods, setMethods] = useState(
     isDelivery
@@ -468,6 +469,7 @@ export default function RuleEditor() {
     const config = {
       mode,
       conditionLogic,
+      negate: mode === "tags" ? negate : false,
       tags: mode === "tags" ? tags : [],
       [methodKey]: methods,
     };
@@ -574,22 +576,45 @@ export default function RuleEditor() {
                   </Text>
                 </BlockStack>
 
-                <InlineStack gap="400">
-                  <RadioButton
-                    label="Any (OR) — customer has at least one tag"
-                    checked={conditionLogic === "any"}
-                    id="logic-any"
-                    name="logic"
-                    onChange={() => setConditionLogic("any")}
-                  />
-                  <RadioButton
-                    label="All (AND) — customer has all tags"
-                    checked={conditionLogic === "all"}
-                    id="logic-all"
-                    name="logic"
-                    onChange={() => setConditionLogic("all")}
-                  />
-                </InlineStack>
+                <BlockStack gap="200">
+                  <Text variant="bodySm" fontWeight="semibold">Match type</Text>
+                  <InlineStack gap="400">
+                    <RadioButton
+                      label="Any (OR) — customer has at least one tag"
+                      checked={conditionLogic === "any"}
+                      id="logic-any"
+                      name="logic"
+                      onChange={() => setConditionLogic("any")}
+                    />
+                    <RadioButton
+                      label="All (AND) — customer has all tags"
+                      checked={conditionLogic === "all"}
+                      id="logic-all"
+                      name="logic"
+                      onChange={() => setConditionLogic("all")}
+                    />
+                  </InlineStack>
+                </BlockStack>
+
+                <BlockStack gap="200">
+                  <Text variant="bodySm" fontWeight="semibold">Apply rule to customers who</Text>
+                  <InlineStack gap="400">
+                    <RadioButton
+                      label="Have these tags (e.g. corporate customers)"
+                      checked={!negate}
+                      id="negate-false"
+                      name="negate"
+                      onChange={() => setNegate(false)}
+                    />
+                    <RadioButton
+                      label="Don't have these tags (e.g. B2C / retail customers)"
+                      checked={negate}
+                      id="negate-true"
+                      name="negate"
+                      onChange={() => setNegate(true)}
+                    />
+                  </InlineStack>
+                </BlockStack>
 
                 <Divider />
 
@@ -704,7 +729,7 @@ export default function RuleEditor() {
                   {mode === "companies"
                     ? "B2B customers (purchasing company) see net terms / invoice payment only. B2C customers see credit card only."
                     : tags.length > 0
-                    ? `Customer tag ${conditionLogic === "any" ? "any" : "all"}: ${tags.join(", ")}`
+                    ? `${negate ? "Customers WITHOUT" : "Customers with"} ${conditionLogic === "any" ? "any of" : "all of"}: ${tags.join(", ")}`
                     : "No tags set yet."}
                 </Text>
               </BlockStack>
