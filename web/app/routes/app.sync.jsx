@@ -55,7 +55,7 @@ export async function action({ request }) {
   }
 
   // Build Shopify customer search query: tag:caltex OR tag:mobil ...
-  const tagQuery = allRuleTags.map((t) => `tag:${t}`).join(" OR ");
+  const tagQuery = allRuleTags.map((t) => `tag:"${t}"`).join(" OR ");
 
   const customers = await fetchAllCustomers(admin, tagQuery);
 

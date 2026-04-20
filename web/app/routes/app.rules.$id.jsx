@@ -27,6 +27,7 @@ import {
 import { useState, useCallback, useRef } from "react";
 import {
   authenticate,
+  apiVersion,
   DELIVERY_METAFIELD_NS,
   PAYMENT_METAFIELD_NS,
   METAFIELD_KEY,
@@ -134,33 +135,53 @@ const SET_METAFIELD = `
 
 // ── Loader ─────────────────────────────────────────────────────────────────
 
-async function fetchPaymentMethods(admin) {
-  // payment_gateways REST endpoint requires read_payment_gateways scope.
-  // We get what we can from GraphQL (digital wallets + payment terms) as a starting point.
+// Shopify Payments card brands shown at checkout — hardcoded since they're
+// not returned by the payment_gateways REST endpoint.
+const SHOPIFY_PAYMENTS_BRANDS = [
+  "Visa", "Mastercard", "American Express", "eftpos New Zealand",
+  "JCB", "Diners Club",
+];
+
+async function fetchPaymentMethods(admin, session) {
+  const walletMap = {
+    APPLE_PAY: "Apple Pay", GOOGLE_PAY: "Google Pay",
+    SHOPIFY_PAY: "Shop Pay", AMAZON_PAY: "Amazon Pay",
+    FACEBOOK_PAY: "Facebook Pay",
+  };
+
+  // GraphQL: digital wallets (no extra scope needed)
+  let wallets = [];
   try {
-    const res = await admin.graphql(`
-      query {
-        shop { paymentSettings { supportedDigitalWallets } }
-        paymentTermsTemplates { name }
-      }
-    `);
+    const res = await admin.graphql(
+      `query { shop { paymentSettings { supportedDigitalWallets } } }`
+    );
     const { data } = await res.json();
-    const walletMap = {
-      APPLE_PAY: "Apple Pay", GOOGLE_PAY: "Google Pay",
-      SHOPIFY_PAY: "Shop Pay", AMAZON_PAY: "Amazon Pay",
-      FACEBOOK_PAY: "Facebook Pay",
-    };
-    const wallets = (data?.shop?.paymentSettings?.supportedDigitalWallets ?? [])
+    wallets = (data?.shop?.paymentSettings?.supportedDigitalWallets ?? [])
       .map((w) => walletMap[w] ?? w);
-    const terms = (data?.paymentTermsTemplates ?? []).map((t) => t.name);
-    return [...new Set([...wallets, ...terms])].sort();
-  } catch {
-    return [];
-  }
+  } catch { /* ignore */ }
+
+  // REST: payment_gateways — manual methods + third-party gateways
+  // Requires read_payment_gateways scope; falls back silently if not yet granted.
+  let gatewayNames = [];
+  try {
+    const res = await fetch(
+      `https://${session.shop}/admin/api/${apiVersion}/payment_gateways.json`,
+      { headers: { "X-Shopify-Access-Token": session.accessToken } }
+    );
+    if (res.ok) {
+      const { payment_gateways } = await res.json();
+      gatewayNames = (payment_gateways ?? [])
+        .filter((g) => g.enabled !== false)
+        .map((g) => g.name)
+        .filter(Boolean);
+    }
+  } catch { /* scope not granted yet — use fallback list */ }
+
+  return [...new Set([...SHOPIFY_PAYMENTS_BRANDS, ...wallets, ...gatewayNames])].sort();
 }
 
 export async function loader({ request, params }) {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { id } = params;
 
   if (id === "new-delivery") {
@@ -177,7 +198,7 @@ export async function loader({ request, params }) {
   }
 
   if (id === "new-payment") {
-    const paymentMethods = await fetchPaymentMethods(admin);
+    const paymentMethods = await fetchPaymentMethods(admin, session);
     return json({
       isNew: true,
       type: "payment",
@@ -214,7 +235,7 @@ export async function loader({ request, params }) {
     const customization = data?.paymentCustomization;
     const config = customization?.metafield?.jsonValue ?? { mode: "companies", conditionLogic: "any", tags: [], paymentMethods: [] };
 
-    const paymentMethods = await fetchPaymentMethods(admin);
+    const paymentMethods = await fetchPaymentMethods(admin, session);
     const existingTitles = new Set((config.paymentMethods ?? []).map((m) => m.title));
     paymentMethods.forEach((m) => {
       if (!existingTitles.has(m)) {
