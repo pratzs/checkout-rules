@@ -27,8 +27,6 @@ import {
 import { useState, useCallback, useRef } from "react";
 import {
   authenticate,
-  DELIVERY_FUNCTION_GID,
-  PAYMENT_FUNCTION_GID,
   DELIVERY_METAFIELD_NS,
   PAYMENT_METAFIELD_NS,
   METAFIELD_KEY,
@@ -207,6 +205,14 @@ function extractShippingMethods(data) {
   return Array.from(names).sort();
 }
 
+const LOOKUP_FUNCTIONS = `
+  query {
+    shopifyFunctions(first: 25) {
+      nodes { id title apiType }
+    }
+  }
+`;
+
 // ── Action ─────────────────────────────────────────────────────────────────
 
 export async function action({ request, params }) {
@@ -222,7 +228,6 @@ export async function action({ request, params }) {
 
   const config = JSON.parse(configJson);
   const metafieldNamespace = isDelivery ? DELIVERY_METAFIELD_NS : PAYMENT_METAFIELD_NS;
-  const functionGid = isDelivery ? DELIVERY_FUNCTION_GID : PAYMENT_FUNCTION_GID;
 
   const metafieldInput = {
     namespace: metafieldNamespace,
@@ -234,12 +239,41 @@ export async function action({ request, params }) {
   const isNew = id === "new-delivery" || id === "new-payment";
 
   if (isNew) {
+    // Look up live function ID directly from the API
+    const fnRes = await admin.graphql(LOOKUP_FUNCTIONS);
+    const { data: fnData } = await fnRes.json();
+    const fnNodes = fnData?.shopifyFunctions?.nodes ?? [];
+    console.error("[checkout-rules] action: functions available:", JSON.stringify(fnNodes));
+
+    const targetApiType = isDelivery ? "delivery_customization" : "payment_customization";
+    let fn = fnNodes.find((n) => n.apiType === targetApiType);
+    if (!fn) {
+      fn = fnNodes.find((n) =>
+        isDelivery
+          ? n.title?.toLowerCase().includes("delivery")
+          : n.title?.toLowerCase().includes("payment")
+      );
+    }
+
+    if (!fn) {
+      console.error("[checkout-rules] action: no matching function found for type:", targetApiType);
+      return json(
+        { errors: [{ field: "functionId", message: `No ${type} function found. Available: ${fnNodes.map((n) => `${n.title} (${n.apiType})`).join(", ")}` }] },
+        { status: 422 }
+      );
+    }
+
+    // fn.id is already the full GID from the Shopify API
+    const functionId = fn.id;
+    console.error("[checkout-rules] action: using functionId:", functionId, "from fn:", JSON.stringify(fn));
+
     const input = {
-      functionId: functionGid,
+      functionId,
       title,
       enabled,
       metafields: [metafieldInput],
     };
+    console.error("[checkout-rules] action: CREATE input:", JSON.stringify(input));
 
     if (isDelivery) {
       const res = await admin.graphql(CREATE_DELIVERY, { variables: { input } });
