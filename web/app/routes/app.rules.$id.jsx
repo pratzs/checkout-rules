@@ -1,5 +1,5 @@
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useSubmit, useNavigation, useNavigate } from "@remix-run/react";
+import { useLoaderData, useSubmit, useNavigation, useNavigate, useActionData } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -398,6 +398,7 @@ function MethodRow({ method, onChange }) {
 export default function RuleEditor() {
   const { isNew, type, customization, config: initialConfig, availableMethods } =
     useLoaderData();
+  const actionData = useActionData();
   const submit = useSubmit();
   const navigate = useNavigate();
   const navigation = useNavigation();
@@ -460,10 +461,15 @@ export default function RuleEditor() {
   return (
     <Page
       title={pageTitle}
-      backAction={{ content: "Rules", url: "/app" }}
+      backAction={{ content: "Rules", onAction: () => navigate("/app") }}
     >
       <Layout>
         <Layout.Section>
+          {actionData?.errors?.length > 0 && (
+            <Banner tone="critical" title="Save failed">
+              {actionData.errors.map((e) => <p key={e.field}>{e.message}</p>)}
+            </Banner>
+          )}
           {/* Title */}
           <Card>
             <BlockStack gap="400">
