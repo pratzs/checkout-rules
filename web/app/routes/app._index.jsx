@@ -35,6 +35,7 @@ const QUERY = `
         id
         title
         enabled
+        functionId
         metafield(namespace: "${DELIVERY_METAFIELD_NS}", key: "${METAFIELD_KEY}") {
           jsonValue
         }
@@ -45,6 +46,7 @@ const QUERY = `
         id
         title
         enabled
+        functionId
         metafield(namespace: "${PAYMENT_METAFIELD_NS}", key: "${METAFIELD_KEY}") {
           jsonValue
         }
@@ -108,6 +110,7 @@ export async function loader({ request }) {
   const { data: fnData } = await fnRes.json();
   console.log("[checkout-rules] Functions:", JSON.stringify(fnData?.shopifyFunctions?.nodes));
   console.log("[checkout-rules] Current app:", JSON.stringify(fnData?.currentAppInstallation));
+  console.log("[checkout-rules] ALL delivery customizations:", JSON.stringify(data?.deliveryCustomizations?.nodes?.map(n => ({ id: n.id, title: n.title, functionId: n.functionId }))));
 
   const deliveryRules = (data?.deliveryCustomizations?.nodes ?? []).filter(
     (n) => n.metafield !== null
