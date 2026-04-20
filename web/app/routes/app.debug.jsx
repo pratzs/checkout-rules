@@ -6,7 +6,7 @@ import {
 } from "@shopify/polaris";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
-import { syncSingleCustomer, getAllRuleTags } from "../utils/sync.server";
+import { syncSingleCustomer } from "../utils/sync.server";
 
 const FUNCTIONS_QUERY = `
   query Diagnose {
@@ -87,19 +87,13 @@ export async function action({ request }) {
   }
 
   if (intent === "sync") {
-    // Sync a single customer's groups metafield to their current Shopify tags
+    // Write all of the customer's current Shopify tags to the groups metafield.
+    // The function computes the intersection with rule tags at checkout — no pre-filtering needed.
     const customerId = formData.get("customerId");
-    const rawTags = formData.get("customerTags"); // comma-separated
+    const rawTags = formData.get("customerTags"); // comma-separated from hidden input
     const customerTags = rawTags ? rawTags.split(",").map((t) => t.trim()).filter(Boolean) : [];
-    const allRuleTags = await getAllRuleTags(admin);
-    await syncSingleCustomer(admin, customerId.replace("gid://shopify/Customer/", ""), customerTags, allRuleTags);
-    // Re-fetch customer to show updated state
-    const res = await admin.graphql(CUSTOMER_LOOKUP, {
-      variables: { email: `id:${customerId.replace("gid://shopify/Customer/", "")}` },
-    });
-    const { data } = await res.json();
-    // Fall back to a simple success response — user can re-lookup to verify
-    return json({ intent: "synced", customerId, synced: true, allRuleTags });
+    await syncSingleCustomer(admin, customerId.replace("gid://shopify/Customer/", ""), customerTags);
+    return json({ intent: "synced", customerId, synced: true, writtenTags: customerTags });
   }
 
   return json({ ok: false });
@@ -154,9 +148,8 @@ export default function Debug() {
 
             {synced && (
               <Banner tone="success">
-                Customer groups metafield synced to their current Shopify tags.
-                Matched rule tags: [{(fetcher.data?.allRuleTags ?? []).join(", ")}].
-                Re-lookup to verify, then re-test checkout.
+                Groups metafield updated to: [{(fetcher.data?.writtenTags ?? []).join(", ")}].
+                Click Look up to verify, then re-test checkout.
               </Banner>
             )}
 

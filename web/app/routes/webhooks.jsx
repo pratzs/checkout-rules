@@ -1,5 +1,5 @@
 import { authenticate } from "../shopify.server";
-import { syncSingleCustomer, getAllRuleTags } from "../utils/sync.server";
+import { syncSingleCustomer } from "../utils/sync.server";
 
 export async function action({ request }) {
   const { topic, payload, admin } = await authenticate.webhook(request);
@@ -12,15 +12,15 @@ export async function action({ request }) {
   if (!admin) return new Response("No admin context", { status: 200 });
 
   const customerId = payload?.id;
-  const customerTags = payload?.tags ?? [];
+  // Shopify sends tags as a comma-separated string in webhook payload
+  const rawTags = payload?.tags ?? "";
+  const customerTags = typeof rawTags === "string"
+    ? rawTags.split(",").map((t) => t.trim()).filter(Boolean)
+    : Array.isArray(rawTags) ? rawTags : [];
   if (!customerId) return new Response("No customer id", { status: 200 });
 
-  // Get every tag currently used across all active rules
-  const allRuleTags = await getAllRuleTags(admin);
-  if (allRuleTags.length === 0) return new Response("No rules", { status: 200 });
-
-  // Update this customer's groups metafield immediately
-  await syncSingleCustomer(admin, customerId, customerTags, allRuleTags);
+  // Write all customer tags directly — function computes intersection at checkout
+  await syncSingleCustomer(admin, customerId, customerTags);
 
   return new Response("OK", { status: 200 });
 }

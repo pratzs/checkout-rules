@@ -53,11 +53,11 @@ async function fetchAllPages(admin, query, variables = {}) {
 
 /**
  * Sync a single customer's groups metafield immediately.
+ * Writes ALL the customer's current Shopify tags — the function computes
+ * the intersection with rule tags at checkout time, so no pre-filtering needed.
  * Called from the customers/create and customers/update webhooks.
  */
-export async function syncSingleCustomer(admin, customerId, customerTags, allRuleTags) {
-  const ruleTagSet = new Set(allRuleTags);
-  const matchingTags = customerTags.filter((t) => ruleTagSet.has(t));
+export async function syncSingleCustomer(admin, customerId, customerTags) {
   await admin.graphql(SET_METAFIELDS, {
     variables: {
       metafields: [{
@@ -65,7 +65,7 @@ export async function syncSingleCustomer(admin, customerId, customerTags, allRul
         namespace: "$app:checkout-rules",
         key: "groups",
         type: "json",
-        value: JSON.stringify(matchingTags),
+        value: JSON.stringify(customerTags),
       }],
     },
   });
@@ -98,10 +98,11 @@ export async function bulkSync(admin, allRuleTags) {
 
   const base = { namespace: "$app:checkout-rules", key: "groups", type: "json" };
 
+  // Write all customer tags (function computes intersection at checkout)
   const updates = withTags.map((c) => ({
     ...base,
     ownerId: c.id,
-    value: JSON.stringify(c.tags.filter((t) => ruleTagSet.has(t))),
+    value: JSON.stringify(c.tags),
   }));
 
   const clears = stale.map((c) => ({ ...base, ownerId: c.id, value: "[]" }));
