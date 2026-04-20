@@ -48,7 +48,9 @@ export async function action({ request }) {
       }
     }
   } catch {
-    // If the read fails, proceed with the write anyway
+    // If the read fails (e.g. rate-limited under load), skip the write.
+    // The manual Sync button or next real tag change will catch up.
+    return new Response("Read failed, skipping to avoid storm", { status: 200 });
   }
 
   // Tags changed — update the groups metafield
