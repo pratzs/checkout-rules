@@ -88,8 +88,14 @@ const DELETE_PAYMENT = `
 const FUNCTIONS_QUERY = `
   query {
     shopifyFunctions(first: 25) {
-      nodes { id title apiType }
+      nodes {
+        id
+        title
+        apiType
+        app { id title }
+      }
     }
+    currentAppInstallation { id app { id title } }
   }
 `;
 
@@ -100,7 +106,8 @@ export async function loader({ request }) {
 
   const fnRes = await admin.graphql(FUNCTIONS_QUERY);
   const { data: fnData } = await fnRes.json();
-  console.log("[checkout-rules] Registered functions:", JSON.stringify(fnData?.shopifyFunctions?.nodes));
+  console.log("[checkout-rules] Functions:", JSON.stringify(fnData?.shopifyFunctions?.nodes));
+  console.log("[checkout-rules] Current app:", JSON.stringify(fnData?.currentAppInstallation));
 
   const deliveryRules = (data?.deliveryCustomizations?.nodes ?? []).filter(
     (n) => n.metafield !== null
