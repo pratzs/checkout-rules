@@ -1,5 +1,6 @@
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useSubmit, useNavigation, useNavigate, useActionData } from "@remix-run/react";
+import { bulkSync } from "../utils/sync.server";
 import {
   Page,
   Layout,
@@ -354,6 +355,12 @@ export async function action({ request, params }) {
         return json({ errors: data.paymentCustomizationUpdate.userErrors }, { status: 422 });
       }
     }
+  }
+
+  // Auto-sync customers with this rule's tags so no manual sync is needed.
+  // Runs in the background after save — fires and doesn't block the redirect.
+  if (config.mode === "tags" && Array.isArray(config.tags) && config.tags.length > 0) {
+    bulkSync(admin, config.tags).catch(() => {/* non-fatal */});
   }
 
   return redirect("/app");

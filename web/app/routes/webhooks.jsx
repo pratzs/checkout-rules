@@ -1,87 +1,26 @@
 import { authenticate } from "../shopify.server";
-
-// Fetch all rule tags currently configured across all active customizations
-const GET_ALL_RULE_TAGS = `
-  query GetAllRuleTags {
-    paymentCustomizations(first: 50) {
-      nodes {
-        metafield(namespace: "$app:b2b-payment-rules", key: "function-configuration") {
-          jsonValue
-        }
-      }
-    }
-    deliveryCustomizations(first: 50) {
-      nodes {
-        metafield(namespace: "$app:b2b-delivery-rules", key: "function-configuration") {
-          jsonValue
-        }
-      }
-    }
-  }
-`;
-
-const SET_GROUPS = `
-  mutation SetGroups($metafields: [MetafieldsSetInput!]!) {
-    metafieldsSet(metafields: $metafields) {
-      metafields { id }
-      userErrors { field message }
-    }
-  }
-`;
+import { syncSingleCustomer, getAllRuleTags } from "../utils/sync.server";
 
 export async function action({ request }) {
   const { topic, payload, admin } = await authenticate.webhook(request);
 
-  // Only handle customer updates
-  if (topic !== "CUSTOMERS_UPDATE") {
+  // Handle both customer create and update — both may involve tag changes
+  if (topic !== "CUSTOMERS_UPDATE" && topic !== "CUSTOMERS_CREATE") {
     return new Response("Not handled", { status: 200 });
   }
 
-  // admin is available for non-GDPR webhooks
-  if (!admin) {
-    return new Response("No admin context", { status: 200 });
-  }
+  if (!admin) return new Response("No admin context", { status: 200 });
 
-  const customerTags = payload?.tags ?? [];
   const customerId = payload?.id;
+  const customerTags = payload?.tags ?? [];
   if (!customerId) return new Response("No customer id", { status: 200 });
 
-  const customerGid = `gid://shopify/Customer/${customerId}`;
+  // Get every tag currently used across all active rules
+  const allRuleTags = await getAllRuleTags(admin);
+  if (allRuleTags.length === 0) return new Response("No rules", { status: 200 });
 
-  // Get every rule tag that any active rule uses
-  const rulesRes = await admin.graphql(GET_ALL_RULE_TAGS);
-  const { data } = await rulesRes.json();
-
-  const allRuleTags = new Set();
-  for (const node of data?.paymentCustomizations?.nodes ?? []) {
-    for (const tag of node.metafield?.jsonValue?.tags ?? []) {
-      allRuleTags.add(tag);
-    }
-  }
-  for (const node of data?.deliveryCustomizations?.nodes ?? []) {
-    for (const tag of node.metafield?.jsonValue?.tags ?? []) {
-      allRuleTags.add(tag);
-    }
-  }
-
-  // Which of this customer's current tags are rule tags?
-  // If none → groups = [] → B2C rule applies (Monthly Account Payment hidden)
-  // If some → groups = [...] → B2B/corporate rules apply
-  const matchingTags = customerTags.filter((t) => allRuleTags.has(t));
-
-  await admin.graphql(SET_GROUPS, {
-    variables: {
-      metafields: [
-        {
-          ownerId: customerGid,
-          namespace: "$app:checkout-rules",
-          key: "groups",
-          type: "json",
-          value: JSON.stringify(matchingTags),
-        },
-      ],
-    },
-  });
+  // Update this customer's groups metafield immediately
+  await syncSingleCustomer(admin, customerId, customerTags, allRuleTags);
 
   return new Response("OK", { status: 200 });
 }

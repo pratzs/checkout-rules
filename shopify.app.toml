@@ -23,5 +23,5 @@ redirect_urls = [
 api_version = "2026-04"
 
   [[webhooks.subscriptions]]
-  topics = ["customers/update"]
+  topics = ["customers/update", "customers/create"]
   uri = "/webhooks"
