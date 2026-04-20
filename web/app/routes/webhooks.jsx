@@ -1,6 +1,18 @@
 import { authenticate } from "../shopify.server";
 import { syncSingleCustomer } from "../utils/sync.server";
 
+// Read the customer's current groups metafield so we can skip the write
+// if nothing changed — this breaks the webhook→metafield→webhook feedback loop.
+const GET_CUSTOMER_GROUPS = `
+  query GetCustomerGroups($id: ID!) {
+    customer(id: $id) {
+      metafield(namespace: "$app:checkout-rules", key: "groups") {
+        jsonValue
+      }
+    }
+  }
+`;
+
 export async function action({ request }) {
   const { topic, payload, admin } = await authenticate.webhook(request);
 
@@ -19,7 +31,27 @@ export async function action({ request }) {
     : Array.isArray(rawTags) ? rawTags : [];
   if (!customerId) return new Response("No customer id", { status: 200 });
 
-  // Write all customer tags directly — function computes intersection at checkout
+  // Read-before-write: if the groups metafield already contains exactly
+  // these tags, skip the write entirely. This stops the feedback loop where
+  // writing the metafield triggers another customers/update webhook.
+  try {
+    const res = await admin.graphql(GET_CUSTOMER_GROUPS, {
+      variables: { id: `gid://shopify/Customer/${customerId}` },
+    });
+    const { data } = await res.json();
+    const currentGroups = data?.customer?.metafield?.jsonValue;
+    if (Array.isArray(currentGroups)) {
+      const sortedCurrent = [...currentGroups].sort().join(",");
+      const sortedNew = [...customerTags].sort().join(",");
+      if (sortedCurrent === sortedNew) {
+        return new Response("No change", { status: 200 });
+      }
+    }
+  } catch {
+    // If the read fails, proceed with the write anyway
+  }
+
+  // Tags changed — update the groups metafield
   await syncSingleCustomer(admin, customerId, customerTags);
 
   return new Response("OK", { status: 200 });
