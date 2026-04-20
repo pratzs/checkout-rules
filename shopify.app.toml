@@ -2,7 +2,7 @@
 
 client_id = "f91ada05117781716bca25dfa1f46351"
 name = "checkout-rules"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://checkout-rules-aoxi.onrender.com"
 embedded = true
 
 [build]
@@ -14,9 +14,9 @@ scopes = "read_delivery_customizations,write_delivery_customizations,read_paymen
 
 [auth]
 redirect_urls = [
-  "https://shopify.dev/apps/default-app-home/auth/callback",
-  "https://shopify.dev/apps/default-app-home/auth/shopify/callback",
-  "https://shopify.dev/apps/default-app-home/api/auth/callback"
+  "https://checkout-rules-aoxi.onrender.com/auth/callback",
+  "https://checkout-rules-aoxi.onrender.com/auth/shopify/callback",
+  "https://checkout-rules-aoxi.onrender.com/api/auth/callback"
 ]
 
 [webhooks]
