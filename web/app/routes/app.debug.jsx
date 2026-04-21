@@ -92,7 +92,10 @@ export async function action({ request }) {
     const customerId = formData.get("customerId");
     const rawTags = formData.get("customerTags"); // comma-separated from hidden input
     const customerTags = rawTags ? rawTags.split(",").map((t) => t.trim()).filter(Boolean) : [];
-    await syncSingleCustomer(admin, customerId.replace("gid://shopify/Customer/", ""), customerTags);
+    const errors = await syncSingleCustomer(admin, customerId.replace("gid://shopify/Customer/", ""), customerTags);
+    if (errors.length > 0) {
+      return json({ intent: "syncError", errors, customerId });
+    }
     return json({ intent: "synced", customerId, synced: true, writtenTags: customerTags });
   }
 
@@ -113,6 +116,7 @@ export default function Debug() {
   const lookupResult = fetcher.data?.intent === "lookup" ? fetcher.data.customer : undefined;
   const cleared = fetcher.data?.intent === "clear";
   const synced = fetcher.data?.intent === "synced";
+  const syncError = fetcher.data?.intent === "syncError" ? fetcher.data.errors : null;
 
   // True stale = metafield exists but its contents don't match the customer's current tags
   const isOutOfSync = lookupResult?.groupsMetafield
@@ -161,6 +165,12 @@ export default function Debug() {
               <Banner tone="success">
                 Groups metafield updated to: [{(fetcher.data?.writtenTags ?? []).join(", ")}].
                 Click Look up to verify, then re-test checkout.
+              </Banner>
+            )}
+
+            {syncError && (
+              <Banner tone="critical" title="Metafield write failed">
+                {syncError.map((e, i) => <p key={i}>{e.field}: {e.message}</p>)}
               </Banner>
             )}
 

@@ -70,9 +70,11 @@ async function fetchAllPages(admin, query, variables = {}) {
  * Writes ALL the customer's current Shopify tags — the function computes
  * the intersection with rule tags at checkout time, so no pre-filtering needed.
  * Called from the customers/create and customers/update webhooks.
+ *
+ * Returns any userErrors from the mutation so callers can surface them.
  */
 export async function syncSingleCustomer(admin, customerId, customerTags) {
-  await admin.graphql(SET_METAFIELDS, {
+  const res = await admin.graphql(SET_METAFIELDS, {
     variables: {
       metafields: [{
         ownerId: `gid://shopify/Customer/${customerId}`,
@@ -83,6 +85,9 @@ export async function syncSingleCustomer(admin, customerId, customerTags) {
       }],
     },
   });
+  const { data } = await res.json();
+  const errors = data?.metafieldsSet?.userErrors ?? [];
+  return errors; // empty array = success
 }
 
 /**
