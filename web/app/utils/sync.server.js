@@ -8,10 +8,18 @@
  *  - app.rules.$id.jsx (auto-sync after rule save)
  */
 
+// Fetch customers with their current groups metafield so we can skip writes
+// for customers whose value already matches — avoids triggering unnecessary webhooks.
 const CUSTOMERS_QUERY = `
   query GetCustomers($query: String!, $after: String) {
     customers(first: 250, after: $after, query: $query) {
-      nodes { id tags }
+      nodes {
+        id
+        tags
+        groupsMeta: metafield(namespace: "$app:checkout-rules", key: "groups") {
+          jsonValue
+        }
+      }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -20,7 +28,13 @@ const CUSTOMERS_QUERY = `
 const CUSTOMERS_WITH_METAFIELD_QUERY = `
   query GetCustomersWithMetafield($after: String) {
     customers(first: 250, after: $after, query: "metafield:$app:checkout-rules.groups") {
-      nodes { id tags }
+      nodes {
+        id
+        tags
+        groupsMeta: metafield(namespace: "$app:checkout-rules", key: "groups") {
+          jsonValue
+        }
+      }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -98,14 +112,28 @@ export async function bulkSync(admin, allRuleTags) {
 
   const base = { namespace: "$app:checkout-rules", key: "groups", type: "json" };
 
-  // Write all customer tags (function computes intersection at checkout)
-  const updates = withTags.map((c) => ({
-    ...base,
-    ownerId: c.id,
-    value: JSON.stringify(c.tags),
-  }));
+  // Only write customers whose metafield doesn't already match their current tags.
+  // Skipping unchanged customers avoids triggering unnecessary customers/update
+  // webhooks, which was causing the server-flooding storm.
+  function tagsKey(arr) {
+    return [...arr].sort().join(",");
+  }
 
-  const clears = stale.map((c) => ({ ...base, ownerId: c.id, value: "[]" }));
+  const updates = withTags
+    .filter((c) => {
+      const current = c.groupsMeta?.jsonValue;
+      if (!Array.isArray(current)) return true; // no metafield yet → must write
+      return tagsKey(current) !== tagsKey(c.tags);
+    })
+    .map((c) => ({ ...base, ownerId: c.id, value: JSON.stringify(c.tags) }));
+
+  const clears = stale
+    .filter((c) => {
+      const current = c.groupsMeta?.jsonValue;
+      if (!Array.isArray(current) || current.length === 0) return false; // already empty
+      return true;
+    })
+    .map((c) => ({ ...base, ownerId: c.id, value: "[]" }));
 
   const all = [...updates, ...clears];
   if (all.length === 0) return { synced: 0, cleared: 0 };
@@ -116,9 +144,11 @@ export async function bulkSync(admin, allRuleTags) {
   for (let i = 0; i < all.length; i += CHUNK) {
     const chunk = all.slice(i, i + CHUNK);
     await admin.graphql(SET_METAFIELDS, { variables: { metafields: chunk } });
-    for (const m of chunk) {
-      if (updates.some((u) => u.ownerId === m.ownerId)) synced++;
-      else cleared++;
+    synced += chunk.filter((m) => updates.some((u) => u.ownerId === m.ownerId)).length;
+    cleared += chunk.filter((m) => clears.some((cl) => cl.ownerId === m.ownerId)).length;
+    // Small pause between chunks to avoid a simultaneous burst of webhooks
+    if (i + CHUNK < all.length) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
   }
 
