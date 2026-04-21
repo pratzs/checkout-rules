@@ -114,6 +114,17 @@ export default function Debug() {
   const cleared = fetcher.data?.intent === "clear";
   const synced = fetcher.data?.intent === "synced";
 
+  // True stale = metafield exists but its contents don't match the customer's current tags
+  const isOutOfSync = lookupResult?.groupsMetafield
+    ? (() => {
+        const current = lookupResult.groupsMetafield.jsonValue;
+        if (!Array.isArray(current)) return true;
+        const a = [...current].sort().join(",");
+        const b = [...lookupResult.tags].sort().join(",");
+        return a !== b;
+      })()
+    : false;
+
   return (
     <Page title="Debug — Function &amp; Customer State">
       <BlockStack gap="400">
@@ -173,53 +184,40 @@ export default function Debug() {
 
                   {lookupResult.groupsMetafield ? (
                     <BlockStack gap="100">
-                      <InlineStack gap="100">
-                        <Text variant="bodySm" fontWeight="semibold">Groups metafield value:</Text>
-                        <Badge
-                          tone={
-                            Array.isArray(lookupResult.groupsMetafield.jsonValue) &&
-                            lookupResult.groupsMetafield.jsonValue.length > 0
-                              ? "critical"
-                              : "success"
-                          }
-                        >
-                          {Array.isArray(lookupResult.groupsMetafield.jsonValue) &&
-                          lookupResult.groupsMetafield.jsonValue.length > 0
-                            ? `STALE DATA: [${lookupResult.groupsMetafield.jsonValue.join(", ")}] ← function thinks they're corporate!`
-                            : "[] — empty, B2C rule will apply ✓"}
+                      <InlineStack gap="100" blockAlign="center">
+                        <Text variant="bodySm" fontWeight="semibold">Groups metafield:</Text>
+                        <Badge tone={isOutOfSync ? "warning" : "success"}>
+                          {isOutOfSync ? "Out of sync — click Sync" : "In sync ✓"}
                         </Badge>
                       </InlineStack>
                       <Text variant="bodySm" tone="subdued">
-                        Raw: {lookupResult.groupsMetafield.value}
+                        Stored: [{Array.isArray(lookupResult.groupsMetafield.jsonValue)
+                          ? lookupResult.groupsMetafield.jsonValue.join(", ")
+                          : lookupResult.groupsMetafield.value}]
                       </Text>
-                      <InlineStack gap="200">
-                        {Array.isArray(lookupResult.groupsMetafield.jsonValue) &&
-                          lookupResult.groupsMetafield.jsonValue.length > 0 && (
-                            <fetcher.Form method="post">
-                              <input type="hidden" name="intent" value="clear" />
-                              <input type="hidden" name="customerId" value={lookupResult.id} />
-                              <Button tone="critical" submit>
-                                Clear stale metafield → reset to []
-                              </Button>
-                            </fetcher.Form>
-                          )}
-                        <fetcher.Form method="post">
-                          <input type="hidden" name="intent" value="sync" />
-                          <input type="hidden" name="customerId" value={lookupResult.id} />
-                          <input type="hidden" name="customerTags" value={lookupResult.tags.join(",")} />
-                          <Button tone="success" submit loading={fetcher.state !== "idle"}>
-                            Sync metafield → current tags
-                          </Button>
-                        </fetcher.Form>
-                      </InlineStack>
+                      {isOutOfSync && (
+                        <Text variant="bodySm" tone="caution">
+                          Metafield doesn't match current Shopify tags — function may apply wrong rules at checkout.
+                        </Text>
+                      )}
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="intent" value="sync" />
+                        <input type="hidden" name="customerId" value={lookupResult.id} />
+                        <input type="hidden" name="customerTags" value={lookupResult.tags.join(",")} />
+                        <Button tone={isOutOfSync ? "critical" : "plain"} submit loading={fetcher.state !== "idle"}>
+                          {isOutOfSync ? "Sync now → fix mismatch" : "Re-sync (force refresh)"}
+                        </Button>
+                      </fetcher.Form>
                     </BlockStack>
                   ) : (
                     <BlockStack gap="100">
+                      <InlineStack gap="100" blockAlign="center">
+                        <Text variant="bodySm" fontWeight="semibold">Groups metafield:</Text>
+                        <Badge tone="attention">Not set yet</Badge>
+                      </InlineStack>
                       <Text variant="bodySm" tone="subdued">
-                        No groups metafield set — function reads this as [] (no corporate tags).
-                      </Text>
-                      <Text variant="bodySm">
-                        If this customer has corporate tags, click Sync to set their groups now.
+                        No metafield stored. The function will treat this customer as B2C (no corporate groups).
+                        Click Sync to write their current tags.
                       </Text>
                       <fetcher.Form method="post">
                         <input type="hidden" name="intent" value="sync" />
