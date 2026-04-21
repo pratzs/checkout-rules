@@ -1,78 +1,195 @@
-# Shopify App Template - Extension only
+# 🛒 Checkout Rules — Hide, Sort & Control Payment and Shipping at Checkout
 
-This is a template for building an [extension-only Shopify app](https://shopify.dev/docs/apps/build/app-extensions/build-extension-only-app). It contains the basics for building a Shopify app that uses only app extensions.
+> A custom Shopify app built for **Worthy Products (VJ Trading)** that automatically shows or hides payment methods and shipping options at checkout based on who the customer is.
 
-This template doesn't include a server or the ability to embed a page in the Shopify Admin. If you want either of these capabilities, choose the [Remix app template](https://github.com/Shopify/shopify-app-template-remix) instead.
+---
 
-Whether you choose to use this template or another one, you can use your preferred package manager and the Shopify CLI with [these steps](#installing-the-template).
+## 🤔 What Does This App Do? (Simple Explanation)
 
-## Benefits
+Imagine your online store has two types of customers:
 
-Shopify apps are built on a variety of Shopify tools to create a great merchant experience. The [create an app](https://shopify.dev/docs/apps/getting-started/create) tutorial in our developer documentation will guide you through creating a Shopify app.
+- 🧑 **Regular customers (B2C)** — everyday shoppers who pay by credit card
+- 🏢 **Business customers (B2B)** — companies who pay via a monthly account
 
-This app template does little more than install the CLI and scaffold a repository.
+The problem: Shopify shows the same payment options to *everyone*. So your business customers see credit card options they don't need, and regular customers see "Monthly Account Payment" they shouldn't use.
 
-## Getting started
+This app **automatically shows the right payment and shipping options to the right customers** — no manual work needed for your staff.
+
+---
+
+## ✨ What It Controls
+
+### 💳 Payment Methods
+| Customer Type | What They See at Checkout |
+|---|---|
+| Regular customer (no tags) | Credit card only |
+| Accredo customer | Monthly Account Payment (first) + Credit Card |
+| Corporate customer (Caltex, NZMPEA, etc.) | Monthly Account Payment only |
+
+### 🚚 Shipping Methods
+| Customer Type | Shipping Options |
+|---|---|
+| Regular customer | Standard paid shipping |
+| Corporate / Accredo customer | Free shipping options available |
+
+---
+
+## 🏗️ How It Works (Behind the Scenes)
+
+```
+Customer logs in → has tags in Shopify
+        ↓
+App syncs those tags to a hidden "groups" field on the customer
+        ↓
+Customer goes to checkout
+        ↓
+Shopify Function reads the "groups" field
+        ↓
+Shows/hides/reorders payment & shipping methods instantly
+```
+
+The magic happens in **two parts**:
+
+1. **Tag Sync** — Whenever a customer's tags change in Shopify, a webhook fires and the app updates a hidden metafield with those tags. This is the "memory" the checkout reads.
+
+2. **Shopify Function** — A tiny piece of code that runs *inside Shopify's checkout* (not on our server) that reads the customer's tags and applies the rules in real time.
+
+---
+
+## 🗂️ Project Structure
+
+```
+checkout-rules/
+├── web/                          # The Remix web app (admin UI + API)
+│   └── app/
+│       ├── routes/
+│       │   ├── app._index.jsx    # Main rules list page
+│       │   ├── app.rules.$id.jsx # Rule editor (create/edit rules)
+│       │   ├── app.debug.jsx     # Debug tool (test customer state)
+│       │   ├── app.sync.jsx      # Bulk sync endpoint
+│       │   └── webhooks.jsx      # Shopify webhook handler
+│       └── utils/
+│           └── sync.server.js    # Core sync logic (bulk + single customer)
+│
+├── extensions/
+│   ├── b2b-payment-rules/        # Shopify Function: payment method logic
+│   └── b2b-delivery-rules/       # Shopify Function: shipping method logic
+│
+└── README.md                     # This file
+```
+
+---
+
+## 🚀 Setup & Deployment
 
 ### Requirements
+- Node.js 18+
+- Shopify Partner account
+- Shopify Plus store (required for Payment/Delivery Customizations)
+- Render account (for hosting)
 
-1. You must [download and install Node.js](https://nodejs.org/en/download/) if you don't already have it.
-1. You must [create a Shopify partner account](https://partners.shopify.com/signup) if you don’t have one.
-1. You must create a store for testing if you don't have one, either a [development store](https://help.shopify.com/en/partners/dashboard/development-stores#create-a-development-store) or a [Shopify Plus sandbox store](https://help.shopify.com/en/partners/dashboard/managing-stores/plus-sandbox-store).
-
-### Installing the template
-
-This template can be installed using your preferred package manager:
-
-Using yarn:
-
-```shell
-yarn create @shopify/app
-```
-
-Using npm:
-
-```shell
-npm init @shopify/app@latest
-```
-
-Using pnpm:
-
-```shell
-pnpm create @shopify/app@latest
-```
-
-This will clone the template and install the required dependencies.
-
-#### Local Development
-
-[The Shopify CLI](https://shopify.dev/docs/apps/tools/cli) connects to an app in your Partners dashboard. It provides environment variables and runs commands in parallel.
-
-You can develop locally using your preferred package manager. Run one of the following commands from the root of your app.
-
-Using yarn:
-
-```shell
-yarn dev
-```
-
-Using npm:
-
-```shell
+### Local Development
+```bash
+npm install
 npm run dev
 ```
 
-Using pnpm:
+### Deploy to Render
+The app is hosted on [Render](https://render.com). Every push to `main` on GitHub triggers an automatic redeploy.
 
-```shell
-pnpm run dev
+```bash
+git add .
+git commit -m "Your change"
+git push origin main
 ```
 
-Open the URL generated in your console. Once you grant permission to the app, you can start development (such as generating extensions).
+⚠️ **After every deploy:** Re-open the app via the Shopify admin link to restore your session:
+```
+https://admin.shopify.com/store/vjtrading/apps/checkout-rules
+```
 
-## Developer resources
+### Deploy the Shopify Function
+When you change the checkout function logic (`extensions/`), you must redeploy it:
+```bash
+shopify app deploy --force
+```
 
-- [Introduction to Shopify apps](https://shopify.dev/docs/apps/getting-started)
-- [App extensions](https://shopify.dev/docs/apps/build/app-extensions)
-- [Extension only apps](https://shopify.dev/docs/apps/build/app-extensions/build-extension-only-app)
-- [Shopify CLI](https://shopify.dev/docs/apps/tools/cli)
+---
+
+## 🎛️ How to Use the App
+
+### Creating a Rule
+1. Open the app in Shopify Admin
+2. Click **New payment rule** or **New delivery rule**
+3. Choose **Customer Tags mode**
+4. Add the customer tags this rule applies to
+5. Toggle each payment/shipping method **Show** or **Hide**
+6. Use **▲▼ arrows** to set the order (top = shown first at checkout)
+7. Click **Save rule**
+
+### After Saving Any Rule
+The app automatically syncs customers in the background. No manual action needed.
+
+### Manual Sync (if needed)
+On the main page, click **"Sync customers from tags"** to force-update all customers.
+
+### Debug Tool
+Go to the **Debug** page to:
+- Look up any customer by email
+- See exactly what the checkout function will read
+- Fix a single customer's sync if it's out of date
+
+---
+
+## ⚙️ Current Rules
+
+### Payment Rules
+| Rule Name | Applies To | Effect |
+|---|---|---|
+| B2C | Customers WITHOUT corporate tags | Hides Monthly Account Payment |
+| General B2B Customers | Customers WITH `accredo` tag | Shows MAP first, Credit Card second |
+| Corporate Customers B2B | Customers WITH caltex/mobil/NZMPEA/etc tags | Shows Monthly Account Payment only |
+
+### Delivery Rules
+| Rule Name | Applies To | Effect |
+|---|---|---|
+| Free Shipping Corporates | Corporate + Accredo customers | Shows free shipping options |
+| B2C Customers Shipping | Customers WITHOUT corporate tags | Shows standard shipping only |
+
+### Corporate Tags (as of today)
+`caltex` `mobil` `accredo` `Fresh-Choice` `NZMPEA` `Metromart` `liquor-store`
+
+---
+
+## 🐛 Troubleshooting
+
+### App shows blank / "Application Error"
+This happens after a Render redeploy wipes the session. Fix:
+1. Go to `https://admin.shopify.com/store/vjtrading/apps/checkout-rules`
+2. The app will re-authenticate automatically
+
+### Customer still sees wrong payment methods
+1. Open **Debug** page
+2. Look up the customer's email
+3. If it shows "Out of sync" → click **Sync now → fix mismatch**
+4. Test checkout again
+
+### New customer tag isn't working at checkout
+The webhook should auto-sync within seconds. If not:
+1. Check the Debug page for that customer
+2. Click the Sync button if out of sync
+3. Or run the full **Sync customers from tags** from the main page
+
+---
+
+## 🔮 Future Improvements
+
+See [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md) for the full roadmap.
+
+---
+
+## 📞 Support
+
+Built and maintained by the Worthy Products dev team.
+App deployed at: `https://checkout-rules.onrender.com`
+GitHub: `https://github.com/pratzs/checkout-rules`
