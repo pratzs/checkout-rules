@@ -1,6 +1,6 @@
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useSubmit, useNavigation, useNavigate, useActionData } from "@remix-run/react";
-import { bulkSync } from "../utils/sync.server";
+import { bulkSync, getAllRuleTags } from "../utils/sync.server";
 import {
   Page,
   Layout,
@@ -357,11 +357,16 @@ export async function action({ request, params }) {
     }
   }
 
-  // Auto-sync customers with this rule's tags so no manual sync is needed.
-  // Runs in the background after save — fires and doesn't block the redirect.
-  if (config.mode === "tags" && Array.isArray(config.tags) && config.tags.length > 0) {
-    bulkSync(admin, config.tags).catch(() => {/* non-fatal */});
-  }
+  // Auto-sync after save — always use ALL rule tags (across every rule, not just
+  // this one) so that bulkSync doesn't incorrectly clear metafields for customers
+  // who are tagged for a DIFFERENT rule.  e.g. saving the accredo rule with only
+  // ["accredo"] would otherwise wipe metafields for caltex/NZMPEA customers.
+  // Runs in the background and doesn't block the redirect.
+  getAllRuleTags(admin)
+    .then((allTags) => {
+      if (allTags.length > 0) bulkSync(admin, allTags).catch(() => {/* non-fatal */});
+    })
+    .catch(() => {/* non-fatal */});
 
   return redirect("/app");
 }
