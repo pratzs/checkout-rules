@@ -4,9 +4,19 @@ export function cartPaymentMethodsTransformRun(input) {
   const config = input.paymentCustomization?.metafield?.jsonValue;
   const operations = [];
 
-  // No config or Companies mode → original B2B purchasingCompany logic
+  // No config or Companies mode → B2B purchasingCompany logic
   if (!config || config.mode === "companies") {
     const isB2B = input.cart.buyerIdentity?.purchasingCompany != null;
+
+    // When the admin has explicitly toggled individual methods in the config
+    // (visible: false), use those as the authoritative hide list for B2B.
+    // This handles stores where Shopify exposes individual card-brand names
+    // (Visa, American Express, eftpos NZ, etc.) that would never match the
+    // "credit"/"card" pattern fallback.
+    // Falls back to pattern matching when no explicit hides are configured,
+    // preserving the existing behaviour for stores that rely on it.
+    const configMethods = config?.paymentMethods ?? [];
+    const hasExplicitHides = configMethods.some((m) => m.visible === false);
 
     for (const method of input.paymentMethods) {
       const name = method.name?.toLowerCase() ?? "";
@@ -14,9 +24,19 @@ export function cartPaymentMethodsTransformRun(input) {
       const isDeferred =
         name.includes("deferred") || name.includes("net") || name.includes("invoice");
 
-      if (isB2B && isCreditCard) {
-        operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
-      } else if (!isB2B && isDeferred) {
+      if (isB2B) {
+        if (hasExplicitHides) {
+          // Respect the per-method UI toggles: hide anything marked visible: false
+          const rule = configMethods.find((r) => matchesTitle(method.name ?? "", r.title));
+          if (rule && rule.visible === false) {
+            operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
+          }
+        } else if (isCreditCard) {
+          // No explicit config — fall back to pattern matching (original behaviour)
+          operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
+        }
+      } else if (isDeferred) {
+        // B2C: always hide deferred / net-terms methods (unchanged)
         operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
       }
     }
