@@ -8,27 +8,35 @@ export function cartPaymentMethodsTransformRun(input) {
   if (!config || config.mode === "companies") {
     const isB2B = input.cart.buyerIdentity?.purchasingCompany != null;
 
+    // When the admin has explicitly toggled individual methods in the config
+    // (visible: false), use those as the authoritative hide list for B2B.
+    // This handles stores where Shopify exposes individual card-brand names
+    // (Visa, American Express, eftpos NZ, etc.) that would never match the
+    // "credit"/"card" pattern fallback.
+    // Falls back to pattern matching when no explicit hides are configured,
+    // preserving the existing behaviour for stores that rely on it.
+    const configMethods = config?.paymentMethods ?? [];
+    const hasExplicitHides = configMethods.some((m) => m.visible === false);
+
     for (const method of input.paymentMethods) {
       const name = method.name?.toLowerCase() ?? "";
-
-      // A method is considered "deferred / B2B net-terms" if its name contains
-      // any of these keywords. Shopify's own B2B payment options include phrases
-      // like "Net Payment Terms", "Choose payment method later", "Pay by invoice".
-      // We do NOT rely on exact card-brand name matching because Shopify exposes
-      // different names to the Function vs the admin API (e.g. "Shopify Payments"
-      // at runtime vs "Visa"/"Credit Card" in the gateway list).
+      const isCreditCard = name.includes("credit") || name.includes("card");
       const isDeferred =
-        name.includes("deferred") ||
-        name.includes("net")      ||
-        name.includes("invoice")  ||
-        name.includes("terms")    ||
-        name.includes("later");
+        name.includes("deferred") || name.includes("net") || name.includes("invoice");
 
-      if (isB2B && !isDeferred) {
-        // B2B: show ONLY deferred/net-terms methods — hide everything else
-        operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
-      } else if (!isB2B && isDeferred) {
-        // B2C: hide deferred/net-terms methods — show credit card etc.
+      if (isB2B) {
+        if (hasExplicitHides) {
+          // Respect the per-method UI toggles: hide anything marked visible: false
+          const rule = configMethods.find((r) => matchesTitle(method.name ?? "", r.title));
+          if (rule && rule.visible === false) {
+            operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
+          }
+        } else if (isCreditCard) {
+          // No explicit config — fall back to pattern matching (original behaviour)
+          operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
+        }
+      } else if (isDeferred) {
+        // B2C: always hide deferred / net-terms methods (unchanged)
         operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
       }
     }
