@@ -8,4 +8,4 @@ handle = "b2b-payment-due-date"
 
   [[extensions.targeting]]
   module = "./src/index.js"
-  target = "purchase.checkout.payment-method-list.render-after"
+  target = "purchase.checkout.actions.render-before"

@@ -1,7 +1,7 @@
 import { extension, Banner, Text } from "@shopify/ui-extensions/checkout";
 
 export default extension(
-  "purchase.checkout.payment-method-list.render-after",
+  "purchase.checkout.actions.render-before",
   (root, api) => {
     // Only render for B2B purchasing company buyers
     const company = api.purchasingCompany?.current;
