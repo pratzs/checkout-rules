@@ -1,0 +1,9 @@
+{
+  "name": "b2b-payment-due-date",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@shopify/ui-extensions": "*",
+    "@shopify/ui-extensions-react": "*"
+  }
+}

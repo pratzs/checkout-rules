@@ -1,0 +1,10 @@
+api_version = "2026-04"
+
+[[extensions]]
+type = "ui_extension"
+name = "B2B Payment Due Date"
+handle = "b2b-payment-due-date"
+
+  [[extensions.targeting]]
+  module = "./src/index.jsx"
+  target = "purchase.checkout.payment-method-list.render-after"
