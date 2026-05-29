@@ -1,17 +1,15 @@
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData } from "@remix-run/react";
 import {
   Page,
   Layout,
   Card,
   Text,
-  Button,
   Banner,
   BlockStack,
   InlineStack,
   Badge,
   Box,
-  Divider,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 
@@ -43,41 +41,6 @@ const GET_COMPANY_LOCATIONS = `
   }
 `;
 
-const GET_PAYMENT_TERMS_TEMPLATES = `
-  query GetPaymentTermsTemplates {
-    paymentTermsTemplates {
-      id
-      name
-      paymentTermsType
-      dueInDays
-    }
-  }
-`;
-
-const UPDATE_COMPANY_LOCATION_PAYMENT_TERMS = `
-  mutation UpdateCompanyLocationPaymentTerms(
-    $companyLocationId: ID!
-    $input: CompanyLocationUpdateInput!
-  ) {
-    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
-      companyLocation {
-        id
-        name
-        buyerExperienceConfiguration {
-          paymentTermsTemplate {
-            id
-            name
-            paymentTermsType
-          }
-        }
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,192 +80,110 @@ export async function loader({ request }) {
   return json({ locations, dueDate });
 }
 
-// ─── Action ──────────────────────────────────────────────────────────────────
-
-export async function action({ request }) {
-  const { admin } = await authenticate.admin(request);
-
-  // Get FIXED payment terms template
-  const templatesRes = await admin.graphql(GET_PAYMENT_TERMS_TEMPLATES);
-  const { data: templatesData } = await templatesRes.json();
-  const templates = templatesData?.paymentTermsTemplates ?? [];
-  const fixedTemplate = templates.find((t) => t.paymentTermsType === "FIXED");
-
-  if (!fixedTemplate) {
-    return json(
-      { error: "No FIXED payment terms template found on this store." },
-      { status: 400 }
-    );
-  }
-
-  // Fetch all company locations
-  const locations = await fetchAllCompanyLocations(admin);
-
-  if (locations.length === 0) {
-    return json({ updated: 0, total: 0, errors: [], dueDate: calcNextDueDate() });
-  }
-
-  // Update each location to FIXED payment terms
-  let updated = 0;
-  const errors = [];
-
-  for (const location of locations) {
-    const res = await admin.graphql(UPDATE_COMPANY_LOCATION_PAYMENT_TERMS, {
-      variables: {
-        companyLocationId: location.id,
-        input: {
-          buyerExperienceConfiguration: {
-            paymentTermsTemplateId: fixedTemplate.id,
-          },
-        },
-      },
-    });
-    const { data } = await res.json();
-    const userErrors = data?.companyLocationUpdate?.userErrors ?? [];
-    if (userErrors.length > 0) {
-      errors.push(
-        `${location.name}: ${userErrors.map((e) => e.message).join(", ")}`
-      );
-    } else {
-      updated++;
-    }
-  }
-
-  return json({
-    updated,
-    total: locations.length,
-    errors,
-    dueDate: calcNextDueDate(),
-    fixedTemplateName: fixedTemplate.name,
-  });
-}
-
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function B2BPaymentTermsPage() {
   const { locations, dueDate } = useLoaderData();
-  const fetcher = useFetcher();
-
-  const isRunning = fetcher.state !== "idle";
-  const result = fetcher.data;
-
-  const handleUpdate = () => {
-    fetcher.submit({}, { method: "post" });
-  };
 
   return (
     <Page
-      title="B2B Payment Terms"
-      subtitle="Set all company locations to Fixed payment terms so the correct due date appears natively at checkout"
+      title="B2B Payment Terms — Status"
+      subtitle="Overview of how B2B payment due dates work in this app"
       backAction={{ content: "Checkout Rules", url: "/app" }}
     >
       <Layout>
 
-        {/* How it works */}
+        {/* Platform limitation explained clearly */}
         <Layout.Section>
-          <Banner tone="info" title="How this works">
+          <Banner tone="warning" title="Shopify platform limitation — what can and can't be done">
             <BlockStack gap="200">
               <Text as="p">
-                Shopify B2B checkout displays payment terms text based on what is
-                set on each company location (e.g. "You're on Net 30 terms. Your
-                payment will be due on 28 June.").
+                <strong>Cannot be changed:</strong> The native Shopify text "You're on Net 30 terms. Your payment will be due on 28 June." is rendered by Shopify internally and cannot be hidden, removed, or replaced — not via CSS, not via extensions, not via any API. Shopify confirmed this is unsupported in checkout extensibility.
               </Text>
               <Text as="p">
-                Clicking <strong>Update All Locations</strong> switches every
-                company location from Net 30/45 to <strong>Fixed</strong> payment
-                terms. Combined with the checkout extension banner, B2B customers
-                see the correct date at checkout.
+                <strong>Cannot be set on company locations:</strong> Shopify only allows NET-type payment terms (Net 30, Net 45, etc.) on company locations. Fixed/date-specific terms are order-level only.
               </Text>
               <Text as="p">
-                <strong>Run this once a month</strong> (or set up Shopify Flow to
-                call it automatically on the 1st of each month). New orders will
-                also have their payment terms corrected automatically via the
-                orders/create webhook.
+                <strong>What IS active and working:</strong> Every B2B order created on this store automatically gets its payment terms corrected to the 20th of the following month via the orders/create webhook. The checkout extension banner also shows the correct date above the Confirm button.
               </Text>
             </BlockStack>
           </Banner>
         </Layout.Section>
 
-        {/* Current due date + action */}
+        {/* What's active */}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <BlockStack gap="100">
-                <Text variant="headingMd" as="h2">
-                  Current payment due date
-                </Text>
-                <Text variant="headingLg" as="p" tone="success">
-                  {dueDate}
-                </Text>
-                <Text as="p" tone="subdued">
-                  (20th of the following calendar month — December wraps to
-                  January of the next year)
-                </Text>
-              </BlockStack>
+              <Text variant="headingMd" as="h2">What is active right now</Text>
 
-              <Divider />
-
-              <InlineStack align="space-between" blockAlign="center">
+              <Box padding="300" background="bg-surface-secondary" borderRadius="200">
                 <BlockStack gap="100">
-                  <Text variant="headingMd" as="h2">
-                    Company locations
-                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Badge tone="success">Active</Badge>
+                    <Text variant="headingSm" as="p">Checkout banner (UI extension)</Text>
+                  </InlineStack>
                   <Text as="p" tone="subdued">
-                    {locations.length} location{locations.length !== 1 ? "s" : ""} found
+                    B2B company buyers see a blue info banner at checkout: "Your invoice will be due on {dueDate}. No payment is required to complete this order."
                   </Text>
                 </BlockStack>
-                <Button
-                  variant="primary"
-                  loading={isRunning}
-                  disabled={isRunning || locations.length === 0}
-                  onClick={handleUpdate}
-                >
-                  {isRunning ? "Updating…" : "Update All Locations Now"}
-                </Button>
-              </InlineStack>
+              </Box>
 
-              {/* Result banner */}
-              {result && !result.error && (
-                <Banner
-                  tone={result.errors?.length > 0 ? "warning" : "success"}
-                  title={
-                    result.errors?.length > 0
-                      ? `Updated ${result.updated} of ${result.total} locations (${result.errors.length} error${result.errors.length !== 1 ? "s" : ""})`
-                      : `✓ All ${result.updated} location${result.updated !== 1 ? "s" : ""} updated to Fixed payment terms`
-                  }
-                >
-                  {result.errors?.length > 0 && (
-                    <BlockStack gap="100">
-                      {result.errors.map((e, i) => (
-                        <Text key={i} as="p" tone="critical">
-                          {e}
-                        </Text>
-                      ))}
-                    </BlockStack>
-                  )}
-                </Banner>
-              )}
+              <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                <BlockStack gap="100">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Badge tone="success">Active</Badge>
+                    <Text variant="headingSm" as="p">Order payment terms correction (webhook)</Text>
+                  </InlineStack>
+                  <Text as="p" tone="subdued">
+                    When a B2B order is created, the orders/create webhook automatically sets Fixed payment terms with due date = 20th of the following month on the order record. This is what your accounts team sees on the order.
+                  </Text>
+                </BlockStack>
+              </Box>
 
-              {result?.error && (
-                <Banner tone="critical" title="Error">
-                  <Text as="p">{result.error}</Text>
-                </Banner>
-              )}
+              <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                <BlockStack gap="100">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Badge tone="attention">Cannot be removed</Badge>
+                    <Text variant="headingSm" as="p">Native Shopify payment terms text</Text>
+                  </InlineStack>
+                  <Text as="p" tone="subdued">
+                    Shopify automatically shows "You're on Net 30 terms. Your payment will be due on [Net 30 date]" for company locations with Net 30 set. This cannot be hidden via any supported Shopify developer mechanism. The correct date is shown via the banner above.
+                  </Text>
+                </BlockStack>
+              </Box>
             </BlockStack>
           </Card>
         </Layout.Section>
 
-        {/* Location list */}
+        {/* Current due date */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="200">
+              <Text variant="headingMd" as="h2">Current month's payment due date</Text>
+              <Text variant="headingXl" as="p" tone="success">{dueDate}</Text>
+              <Text as="p" tone="subdued">
+                20th of the following calendar month. December orders wrap to 20th January of the next year. This date is shown in the checkout banner and set automatically on created orders.
+              </Text>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        {/* Location list - read only */}
         {locations.length > 0 && (
           <Layout.Section>
             <Card>
               <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">
-                  All company locations
-                </Text>
-                {locations.map((loc) => {
+                <BlockStack gap="050">
+                  <Text variant="headingMd" as="h2">
+                    Company locations ({locations.length})
+                  </Text>
+                  <Text as="p" tone="subdued">
+                    Read-only view. Payment terms shown here are what Shopify displays natively at checkout.
+                    The checkout banner and order webhook apply the correct 20th-of-month date regardless of what is shown here.
+                  </Text>
+                </BlockStack>
+                {locations.slice(0, 20).map((loc) => {
                   const terms = loc.buyerExperienceConfiguration?.paymentTermsTemplate;
-                  const isFixed = terms?.paymentTermsType === "FIXED";
                   return (
                     <Box
                       key={loc.id}
@@ -312,53 +193,25 @@ export default function B2BPaymentTermsPage() {
                     >
                       <InlineStack align="space-between" blockAlign="center">
                         <BlockStack gap="050">
-                          <Text variant="headingSm" as="p">
-                            {loc.name}
-                          </Text>
-                          <Text as="p" tone="subdued">
-                            {loc.company?.name}
-                          </Text>
+                          <Text variant="headingSm" as="p">{loc.name}</Text>
+                          <Text as="p" tone="subdued">{loc.company?.name}</Text>
                         </BlockStack>
-                        <Badge tone={isFixed ? "success" : "warning"}>
-                          {terms ? `${terms.name} (${terms.paymentTermsType})` : "No terms set"}
+                        <Badge>
+                          {terms ? `${terms.name}` : "No terms set"}
                         </Badge>
                       </InlineStack>
                     </Box>
                   );
                 })}
+                {locations.length > 20 && (
+                  <Text as="p" tone="subdued">
+                    … and {locations.length - 20} more locations
+                  </Text>
+                )}
               </BlockStack>
             </Card>
           </Layout.Section>
         )}
-
-        {/* Monthly reminder */}
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="300">
-              <Text variant="headingMd" as="h2">
-                Automate with Shopify Flow (optional)
-              </Text>
-              <Text as="p" tone="subdued">
-                To avoid running this manually every month, create a Shopify
-                Flow with a <strong>Scheduled time</strong> trigger set to the
-                1st of each month. Add a <strong>Send HTTP Request</strong>{" "}
-                action pointing to your app URL with this path:
-              </Text>
-              <Box
-                padding="300"
-                background="bg-surface-secondary"
-                borderRadius="200"
-              >
-                <Text as="p" fontWeight="bold">
-                  POST {typeof window !== "undefined" ? window.location.origin : ""}/api/update-company-payment-terms
-                </Text>
-              </Box>
-              <Text as="p" tone="subdued">
-                Or simply bookmark this page and click <strong>Update All Locations Now</strong> on the 1st of each month.
-              </Text>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
 
       </Layout>
     </Page>
