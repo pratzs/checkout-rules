@@ -40,6 +40,23 @@ export function cartPaymentMethodsTransformRun(input) {
         operations.push({ paymentMethodHide: { paymentMethodId: method.id } });
       }
     }
+
+    // For B2B company buyers: override the native payment terms display
+    // by setting Fixed payment terms with due date = 20th of the following month.
+    // This replaces the "You're on Net 30 terms. Your payment will be due on 28 June."
+    // text with the correct date shown natively in Shopify checkout.
+    if (isB2B) {
+      operations.push({
+        paymentTermsSet: {
+          paymentTerms: {
+            fixed: {
+              dueAt: getNextDueDateISO(),
+            },
+          },
+        },
+      });
+    }
+
     return { operations };
   }
 
@@ -87,6 +104,21 @@ export function cartPaymentMethodsTransformRun(input) {
   }
 
   return { operations };
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns an ISO 8601 DateTime string for the 20th of the calendar month
+ * following today. December wraps to January of the following year.
+ * Example output: "2026-06-20T00:00:00.000Z"
+ */
+function getNextDueDateISO() {
+  const now = new Date();
+  const isDecember = now.getMonth() === 11;
+  const year = isDecember ? now.getFullYear() + 1 : now.getFullYear();
+  const month = isDecember ? 0 : now.getMonth() + 1;
+  return new Date(Date.UTC(year, month, 20, 0, 0, 0)).toISOString();
 }
 
 function matchesTitle(actual, pattern) {
