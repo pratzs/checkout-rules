@@ -3,24 +3,23 @@ import { extension, Banner, Text } from "@shopify/ui-extensions/checkout";
 export default extension(
   "purchase.checkout.actions.render-before",
   (root, api) => {
-    // Check overdue status from the customer's synced groups metafield.
-    // This metafield contains all the customer's Shopify tags as a JSON array,
-    // kept current by the app's customers/update webhook.
-    let isOverdue = false;
-    try {
-      const metafields = api.appMetafields?.current ?? [];
-      const groupsMeta = metafields.find(
-        (m) =>
-          m.metafield.namespace === "$app:checkout-rules" &&
-          m.metafield.key === "groups"
-      );
-      if (groupsMeta?.metafield?.value) {
-        const groups = JSON.parse(groupsMeta.metafield.value);
-        isOverdue = Array.isArray(groups) && groups.includes("overdue");
-      }
-    } catch { /* safe fallback — treat as not overdue */ }
+    // Render the payment due date banner immediately — synchronous, always visible.
+    let currentBanner = root.createComponent(
+      Banner,
+      { status: "info", title: "Payment due date" },
+      root.createComponent(
+        Text,
+        null,
+        `Your invoice will be due on ${getPaymentDueDate()}. No payment is required to complete this order.`
+      )
+    );
+    root.appendChild(currentBanner);
 
-    if (isOverdue) {
+    // Asynchronously check if the customer is overdue via Storefront API query.
+    // api.query is built into checkout extensions — no external network access needed.
+    checkOverdue(api).then((isOverdue) => {
+      if (!isOverdue) return;
+      root.removeChild(currentBanner);
       root.appendChild(
         root.createComponent(
           Banner,
@@ -32,23 +31,30 @@ export default extension(
           )
         )
       );
-    } else {
-      root.appendChild(
-        root.createComponent(
-          Banner,
-          { status: "info", title: "Payment due date" },
-          root.createComponent(
-            Text,
-            null,
-            `Your invoice will be due on ${getPaymentDueDate()}. No payment is required to complete this order.`
-          )
-        )
-      );
-    }
+    }).catch(() => { /* keep default banner on any error */ });
   }
 );
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function checkOverdue(api) {
+  // Only check if buyer is a logged-in customer.
+  const customerId = api.buyerIdentity?.customer?.current?.id;
+  if (!customerId) return false;
+
+  // Query the customer's tags via Storefront API.
+  // api.query uses the checkout session context — no external fetch or approval needed.
+  const { data } = await api.query(`
+    query CheckCustomerOverdue {
+      customer {
+        tags
+      }
+    }
+  `);
+
+  const tags = data?.customer?.tags ?? [];
+  return tags.includes("overdue");
+}
 
 /**
  * Returns the 20th of the calendar month following today, with full year.
