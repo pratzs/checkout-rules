@@ -286,6 +286,16 @@ export async function action({ request, params }) {
   const config = JSON.parse(configJson);
   const metafieldNamespace = isDelivery ? DELIVERY_METAFIELD_NS : PAYMENT_METAFIELD_NS;
 
+  // For payment rules: inject the correct 20th-of-next-month ISO date so the
+  // Shopify Function (Wasm/Javy — no real clock) can read it from the metafield.
+  if (!isDelivery) {
+    const now = new Date();
+    const isDecember = now.getMonth() === 11;
+    const year = isDecember ? now.getFullYear() + 1 : now.getFullYear();
+    const month = isDecember ? 0 : now.getMonth() + 1;
+    config.dueAt = new Date(Date.UTC(year, month, 20, 0, 0, 0)).toISOString();
+  }
+
   const metafieldInput = {
     namespace: metafieldNamespace,
     key: METAFIELD_KEY,

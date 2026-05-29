@@ -42,19 +42,25 @@ export function cartPaymentMethodsTransformRun(input) {
     }
 
     // For B2B company buyers: override the native payment terms display
-    // by setting Fixed payment terms with due date = 20th of the following month.
-    // This replaces the "You're on Net 30 terms. Your payment will be due on 28 June."
-    // text with the correct date shown natively in Shopify checkout.
+    // by setting Fixed payment terms with the 20th-of-next-month due date.
+    //
+    // IMPORTANT: The Wasm (Javy) runtime has no real-time clock — new Date()
+    // returns Unix epoch (Jan 1 1970). The correct date is written into this
+    // function's config metafield by the Remix server (which does have real
+    // time) every time a payment rule is saved or refreshed in the admin app.
     if (isB2B) {
-      operations.push({
-        paymentTermsSet: {
-          paymentTerms: {
-            fixed: {
-              dueAt: getNextDueDateISO(),
+      const dueAt = config?.dueAt;
+      if (dueAt) {
+        operations.push({
+          paymentTermsSet: {
+            paymentTerms: {
+              fixed: {
+                dueAt: dueAt,
+              },
             },
           },
-        },
-      });
+        });
+      }
     }
 
     return { operations };
