@@ -3,23 +3,37 @@ import { extension, Banner, Text } from "@shopify/ui-extensions/checkout";
 export default extension(
   "purchase.checkout.actions.render-before",
   (root, api) => {
-    // Only render for B2B purchasing company buyers
-    const company = api.purchasingCompany?.current;
-    if (!company) return;
+    let rendered = false;
 
-    const dueDate = getPaymentDueDate();
+    function renderBanner() {
+      if (rendered) return;
+      rendered = true;
 
-    root.appendChild(
-      root.createComponent(
-        Banner,
-        { status: "info", title: "Payment due date" },
+      const dueDate = getPaymentDueDate();
+
+      root.appendChild(
         root.createComponent(
-          Text,
-          null,
-          `Your invoice will be due on ${dueDate}. No payment is required to complete this order.`
+          Banner,
+          { status: "info", title: "Payment due date" },
+          root.createComponent(
+            Text,
+            null,
+            `Your invoice will be due on ${dueDate}. No payment is required to complete this order.`
+          )
         )
-      )
-    );
+      );
+    }
+
+    // Check synchronously first (value may already be loaded)
+    if (api.purchasingCompany?.current) {
+      renderBanner();
+      return;
+    }
+
+    // Subscribe for async load — fires when the company data arrives
+    api.purchasingCompany?.subscribe((company) => {
+      if (company) renderBanner();
+    });
   }
 );
 
