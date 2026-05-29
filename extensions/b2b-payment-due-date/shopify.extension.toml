@@ -9,3 +9,9 @@ handle = "b2b-payment-due-date"
   [[extensions.targeting]]
   module = "./src/index.js"
   target = "purchase.checkout.actions.render-before"
+
+  # Grant read access to the customer groups metafield so we can detect
+  # "overdue" tag status at checkout without a separate server round-trip.
+  [[extensions.metafields]]
+  namespace = "$app:checkout-rules"
+  key = "groups"

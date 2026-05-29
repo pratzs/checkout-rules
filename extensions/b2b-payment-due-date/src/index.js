@@ -3,16 +3,51 @@ import { extension, Banner, Text } from "@shopify/ui-extensions/checkout";
 export default extension(
   "purchase.checkout.actions.render-before",
   (root, api) => {
-    let rendered = false;
+    // Keep a reference to the currently mounted banner so we can swap it out
+    // if metafield data arrives after purchasingCompany resolves (rare but possible).
+    let currentBanner = null;
 
     function renderBanner() {
-      if (rendered) return;
-      rendered = true;
+      const company = api.purchasingCompany?.current;
+      if (!company) return;
 
-      const dueDate = getPaymentDueDate();
+      // Read the customer's synced tag groups metafield to detect "overdue" status.
+      // The metafield stores a JSON array of the customer's Shopify tags, kept in
+      // sync by the app's customers/update webhook.
+      const metafields = api.appMetafields?.current ?? [];
+      const groupsMeta = metafields.find(
+        (m) =>
+          m.metafield.namespace === "$app:checkout-rules" &&
+          m.metafield.key === "groups"
+      );
+      let groups = [];
+      try {
+        const raw = groupsMeta?.metafield?.value;
+        if (raw) groups = JSON.parse(raw);
+      } catch { /* malformed JSON — treat as no groups */ }
 
-      root.appendChild(
-        root.createComponent(
+      const isOverdue = Array.isArray(groups) && groups.includes("overdue");
+
+      // Remove previous banner before mounting the new one (handles the case
+      // where metafields arrive after the first render).
+      if (currentBanner) {
+        root.removeChild(currentBanner);
+        currentBanner = null;
+      }
+
+      if (isOverdue) {
+        currentBanner = root.createComponent(
+          Banner,
+          { status: "critical", title: "Account overdue — action required" },
+          root.createComponent(
+            Text,
+            null,
+            "Your account has an outstanding overdue balance. Please contact our accounts team to resolve this before placing new orders."
+          )
+        );
+      } else {
+        const dueDate = getPaymentDueDate();
+        currentBanner = root.createComponent(
           Banner,
           { status: "info", title: "Payment due date" },
           root.createComponent(
@@ -20,25 +55,37 @@ export default extension(
             null,
             `Your invoice will be due on ${dueDate}. No payment is required to complete this order.`
           )
-        )
-      );
+        );
+      }
+
+      root.appendChild(currentBanner);
     }
 
-    // Check synchronously first (value may already be loaded)
+    // Render immediately if company data is already available.
     if (api.purchasingCompany?.current) {
       renderBanner();
-      return;
     }
 
-    // Subscribe for async load — fires when the company data arrives
+    // Subscribe to company changes (async load — fires when B2B company data arrives).
     api.purchasingCompany?.subscribe((company) => {
       if (company) renderBanner();
+    });
+
+    // Subscribe to metafield changes — re-render if overdue status arrives after
+    // the initial company-based render (e.g. slow network).
+    api.appMetafields?.subscribe(() => {
+      if (api.purchasingCompany?.current) renderBanner();
     });
   }
 );
 
-// Always returns the 20th of the calendar month after today.
-// December wraps to January of the following year.
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns a human-readable date string for the 20th of the calendar month
+ * following today, including the full year.
+ * Example: "20 June 2026"
+ */
 function getPaymentDueDate() {
   const now = new Date();
   const isDecember = now.getMonth() === 11;

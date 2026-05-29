@@ -17,6 +17,72 @@ const GET_CUSTOMER_TAGS_AND_GROUPS = `
   }
 `;
 
+// ─── Payment customisation dueAt refresh ────────────────────────────────────
+
+const GET_PAYMENT_CUSTOMIZATIONS_FOR_REFRESH = `
+  query GetPaymentCustomizationsForRefresh($after: String) {
+    paymentCustomizations(first: 50, after: $after) {
+      nodes {
+        id
+        metafield(namespace: "$app:b2b-payment-rules", key: "function-configuration") {
+          jsonValue
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+const SET_METAFIELD_DUE_AT = `
+  mutation SetMetafieldDueAt($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      userErrors { field message }
+    }
+  }
+`;
+
+/**
+ * Refreshes the `dueAt` field inside every payment customisation metafield.
+ * Called automatically on every B2B orders/create webhook so the date shown
+ * at checkout is always the current 20th-of-next-month without manual action.
+ */
+async function refreshPaymentCustomizationDueDates(admin) {
+  const now = new Date();
+  const isDecember = now.getMonth() === 11;
+  const year = isDecember ? now.getFullYear() + 1 : now.getFullYear();
+  const month = isDecember ? 0 : now.getMonth() + 1;
+  const dueAt = new Date(Date.UTC(year, month, 20, 0, 0, 0)).toISOString();
+
+  let cursor = null;
+  do {
+    const res = await admin.graphql(GET_PAYMENT_CUSTOMIZATIONS_FOR_REFRESH, {
+      variables: { after: cursor },
+    });
+    const { data } = await res.json();
+    const page = data?.paymentCustomizations;
+    const nodes = page?.nodes ?? [];
+    cursor = page?.pageInfo?.hasNextPage ? page?.pageInfo?.endCursor : null;
+
+    for (const c of nodes) {
+      if (!c.metafield?.jsonValue) continue;
+      const newConfig = { ...c.metafield.jsonValue, dueAt };
+      await admin.graphql(SET_METAFIELD_DUE_AT, {
+        variables: {
+          metafields: [
+            {
+              ownerId: c.id,
+              namespace: "$app:b2b-payment-rules",
+              key: "function-configuration",
+              type: "json",
+              value: JSON.stringify(newConfig),
+            },
+          ],
+        },
+      });
+    }
+  } while (cursor);
+}
+
 // ─── Order webhook queries ───────────────────────────────────────────────────
 
 const GET_ORDER_PURCHASING_ENTITY = `
@@ -184,6 +250,13 @@ async function handleOrderCreate(admin, payload) {
   } catch {
     return new Response("Set payment terms failed", { status: 200 });
   }
+
+  // Non-blocking: refresh dueAt across all payment customisation metafields
+  // so the checkout function always shows the correct 20th-of-next-month date.
+  // This acts as an automatic "cron" — every B2B order keeps the date current.
+  refreshPaymentCustomizationDueDates(admin).catch((e) =>
+    console.error("[orders/create] dueAt refresh failed:", e)
+  );
 
   return new Response("OK", { status: 200 });
 }
