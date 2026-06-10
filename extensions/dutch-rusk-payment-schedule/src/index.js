@@ -5,10 +5,12 @@ const VALID_SCHEDULES = ["weekly", "fortnightly", "monthly"];
 export default extension(
   "purchase.checkout.actions.render-before",
   (root, api) => {
-    // appMetafields is pre-loaded by Shopify at checkout init — no async query needed.
-    const result = resolveSchedule(api);
-    if (!result) return;
-    root.appendChild(buildBanner(root, result));
+    resolveSchedule(api)
+      .then((result) => {
+        if (!result) return;
+        root.appendChild(buildBanner(root, result));
+      })
+      .catch(() => {});
   }
 );
 
@@ -43,15 +45,20 @@ function buildBanner(root, { schedule, dueDate }) {
 
 // ─── Schedule resolution ──────────────────────────────────────────────────────
 
-function resolveSchedule(api) {
-  // appMetafields is pre-loaded by Shopify — declared in shopify.extension.toml.
-  // No async query needed; works even for B2B buyers without a storefront session.
-  const entry = (api.appMetafields.current ?? []).find(
-    (m) =>
-      m.metafield.namespace === "$app:dutch-rusk-checkout" &&
-      m.metafield.key === "payment_schedule"
-  );
-  const schedule = entry?.metafield?.value;
+async function resolveSchedule(api) {
+  const { data, errors } = await api.query(`
+    query GetPaymentSchedule {
+      customer {
+        metafield(namespace: "$app:dutch-rusk-checkout", key: "payment_schedule") {
+          value
+        }
+      }
+    }
+  `);
+
+  if (errors?.length) return null;
+
+  const schedule = data?.customer?.metafield?.value;
   if (!schedule || !VALID_SCHEDULES.includes(schedule)) return null;
   return { schedule, dueDate: calcDueDate(schedule) };
 }
