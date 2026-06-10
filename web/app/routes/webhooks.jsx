@@ -203,19 +203,8 @@ async function handleCustomerWebhook(admin, payload, shop) {
     return new Response("Read failed, skipping to avoid storm", { status: 200 });
   }
 
-  // Read-before-write guard: skip if metafield already matches live tags.
-  if (Array.isArray(currentGroups)) {
-    const sortedStored = [...currentGroups].sort().join(",");
-    const sortedLive = [...currentTags].sort().join(",");
-    if (sortedStored === sortedLive) {
-      return new Response("No change", { status: 200 });
-    }
-  }
-
-  await syncSingleCustomer(admin, customerId, currentTags);
-
-  // Dutch Rusk: mirror the dr-payment:* tag into an app-owned metafield so
-  // the checkout extension can read it (Storefront API doesn't expose tags).
+  // Dutch Rusk: always mirror dr-payment:* tag into the checkout metafield.
+  // This runs BEFORE the groups guard so it isn't skipped when groups haven't changed.
   if (shop === DUTCH_RUSK_SHOP) {
     const scheduleTag = currentTags.find((t) => DR_PAYMENT_TAGS.includes(t));
     const schedule = scheduleTag ? scheduleTag.replace("dr-payment:", "") : "";
@@ -231,6 +220,17 @@ async function handleCustomerWebhook(admin, payload, shop) {
       },
     }).catch((e) => console.error("[DR] payment_schedule metafield write failed:", e));
   }
+
+  // Read-before-write guard: skip groups sync if metafield already matches live tags.
+  if (Array.isArray(currentGroups)) {
+    const sortedStored = [...currentGroups].sort().join(",");
+    const sortedLive = [...currentTags].sort().join(",");
+    if (sortedStored === sortedLive) {
+      return new Response("No change", { status: 200 });
+    }
+  }
+
+  await syncSingleCustomer(admin, customerId, currentTags);
 
   return new Response("OK", { status: 200 });
 }
