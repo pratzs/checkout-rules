@@ -6,6 +6,9 @@ type = "ui_extension"
 name = "Dutch Rusk Payment Schedule"
 handle = "dutch-rusk-payment-schedule"
 
+  [extensions.capabilities]
+  api_access = true
+
   [[extensions.targeting]]
   module = "./src/index.js"
   target = "purchase.checkout.actions.render-before"
