@@ -46,20 +46,24 @@ function buildBanner(root, { schedule, dueDate }) {
 // ─── Schedule resolution ──────────────────────────────────────────────────────
 
 async function resolveSchedule(api) {
-  const { data, errors } = await api.query(`
-    query GetPaymentSchedule {
+  // Read tags directly — same pattern as the overdue check in b2b-payment-due-date.
+  // customer{tags} works via api.query in checkout extensions; $app: metafield
+  // namespace is Admin-API-only and is NOT resolved by the Storefront API.
+  const { data } = await api.query(`
+    query GetCustomerTags {
       customer {
-        metafield(namespace: "$app:dutch-rusk-checkout", key: "payment_schedule") {
-          value
-        }
+        tags
       }
     }
   `);
 
-  if (errors?.length) return null;
+  const tags = data?.customer?.tags ?? [];
+  const scheduleTag = tags.find((t) => t.startsWith("dr-payment:"));
+  if (!scheduleTag) return null;
 
-  const schedule = data?.customer?.metafield?.value;
-  if (!schedule || !VALID_SCHEDULES.includes(schedule)) return null;
+  const schedule = scheduleTag.replace("dr-payment:", "");
+  if (!VALID_SCHEDULES.includes(schedule)) return null;
+
   return { schedule, dueDate: calcDueDate(schedule) };
 }
 

@@ -3,6 +3,9 @@ import { extension, Banner, Text } from "@shopify/ui-extensions/checkout";
 export default extension(
   "purchase.checkout.actions.render-before",
   (root, api) => {
+    // Dutch Rusk uses its own payment schedule extension — skip this banner for them.
+    if (api.shop.myshopifyDomain === "dutchrusk.myshopify.com") return;
+
     // Render the payment due date banner immediately — synchronous, always visible.
     let currentBanner = root.createComponent(
       Banner,
