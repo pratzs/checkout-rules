@@ -161,13 +161,15 @@ export async function loader({ request }) {
 // ─── GraphQL helpers (used in action only) ───────────────────────────────────
 
 const FIND_DR_CUSTOMERS = `
-  query FindDRCustomers($after: String) {
-    customers(first: 250, after: $after, query: "tag:\"dr-payment:weekly\" OR tag:\"dr-payment:fortnightly\" OR tag:\"dr-payment:monthly\"") {
+  query FindDRCustomers($q: String!, $after: String) {
+    customers(first: 250, after: $after, query: $q) {
       nodes { id tags }
       pageInfo { hasNextPage endCursor }
     }
   }
 `;
+
+const DR_CUSTOMER_QUERY = 'tag:"dr-payment:weekly" OR tag:"dr-payment:fortnightly" OR tag:"dr-payment:monthly"';
 
 const SET_PAYMENT_SCHEDULE = `
   mutation SetPaymentSchedule($metafields: [MetafieldsSetInput!]!) {
@@ -196,7 +198,7 @@ export async function action({ request }) {
       let cursor = null;
       let synced = 0;
       do {
-        const res = await admin.graphql(FIND_DR_CUSTOMERS, { variables: { after: cursor } });
+        const res = await admin.graphql(FIND_DR_CUSTOMERS, { variables: { q: DR_CUSTOMER_QUERY, after: cursor } });
         const { data } = await res.json();
         const page = data?.customers;
         cursor = page?.pageInfo?.hasNextPage ? page.pageInfo.endCursor : null;
