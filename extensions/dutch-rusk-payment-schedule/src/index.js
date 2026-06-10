@@ -48,9 +48,6 @@ function buildBanner(root, { schedule, dueDate }) {
 // ─── Schedule resolution ──────────────────────────────────────────────────────
 
 async function resolveSchedule(api) {
-  const customerId = api.buyerIdentity?.customer?.current?.id;
-  if (!customerId) return null;
-
   // Tags aren't accessible via Storefront API in checkout extensions.
   // The webhook handler mirrors dr-payment:* tags into this app-owned metafield.
   const { data } = await api.query(`

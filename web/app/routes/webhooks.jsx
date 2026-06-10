@@ -219,7 +219,7 @@ async function handleCustomerWebhook(admin, payload, shop) {
   if (shop === DUTCH_RUSK_SHOP) {
     const scheduleTag = currentTags.find((t) => DR_PAYMENT_TAGS.includes(t));
     const schedule = scheduleTag ? scheduleTag.replace("dr-payment:", "") : "";
-    admin.graphql(SET_DR_PAYMENT_SCHEDULE, {
+    await admin.graphql(SET_DR_PAYMENT_SCHEDULE, {
       variables: {
         metafields: [{
           ownerId: `gid://shopify/Customer/${customerId}`,
