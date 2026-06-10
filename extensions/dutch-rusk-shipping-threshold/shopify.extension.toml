@@ -1,0 +1,11 @@
+api_version = "2025-07"
+
+[[extensions]]
+uid = "d7e8f9a0-b1c2-4d3e-8f5a-6b7c8d9e0f1a"
+type = "ui_extension"
+name = "Dutch Rusk Shipping Threshold"
+handle = "dutch-rusk-shipping-threshold"
+
+  [[extensions.targeting]]
+  module = "./src/index.js"
+  target = "purchase.checkout.actions.render-before"

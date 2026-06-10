@@ -1,0 +1,8 @@
+{
+  "name": "dutch-rusk-shipping-threshold",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@shopify/ui-extensions": "2025.7.3"
+  }
+}

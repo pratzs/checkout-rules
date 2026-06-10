@@ -10,7 +10,7 @@ automatically_update_urls_on_dev = true
 dev_store_url = ""
 
 [access_scopes]
-scopes = "read_delivery_customizations,write_delivery_customizations,read_payment_customizations,write_payment_customizations,read_shipping,read_customers,write_customers,read_orders,write_orders,read_companies,write_companies"
+scopes = "read_delivery_customizations,write_delivery_customizations,read_payment_customizations,write_payment_customizations,read_shipping,read_customers,write_customers,read_orders,write_orders,read_companies,write_companies,read_themes,write_themes"
 
 [auth]
 redirect_urls = [
@@ -28,4 +28,8 @@ api_version = "2026-04"
 
   [[webhooks.subscriptions]]
   topics = ["orders/create"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["themes/publish"]
   uri = "/webhooks"

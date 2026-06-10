@@ -1,5 +1,10 @@
-import { authenticate } from "../shopify.server";
+import { authenticate, sessionStorage } from "../shopify.server";
 import { syncSingleCustomer } from "../utils/sync.server";
+import {
+  DUTCH_RUSK_SHOP,
+  pushSnippetToTheme,
+  pushSnippetToLiveTheme,
+} from "../utils/theme-sync.server";
 
 // ─── Customer webhook queries ────────────────────────────────────────────────
 
@@ -132,7 +137,7 @@ const SET_ORDER_PAYMENT_TERMS = `
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 export async function action({ request }) {
-  const { topic, payload, admin } = await authenticate.webhook(request);
+  const { topic, payload, admin, shop } = await authenticate.webhook(request);
 
   if (topic === "CUSTOMERS_UPDATE" || topic === "CUSTOMERS_CREATE") {
     return handleCustomerWebhook(admin, payload);
@@ -142,7 +147,49 @@ export async function action({ request }) {
     return handleOrderCreate(admin, payload);
   }
 
+  if (topic === "THEMES_PUBLISH") {
+    return handleThemePublish(payload, shop);
+  }
+
   return new Response("Not handled", { status: 200 });
+}
+
+// ─── Theme publish handler ────────────────────────────────────────────────────
+
+/**
+ * Fires when any theme is published on a store.
+ * For Dutch Rusk only: pushes the shipping-bar snippet into the newly live theme
+ * automatically, so the cart bar survives theme switches without manual steps.
+ */
+async function handleThemePublish(payload, shop) {
+  if (shop !== DUTCH_RUSK_SHOP) return new Response("Not Dutch Rusk, skipping", { status: 200 });
+
+  const themeId = payload?.id;
+  if (!themeId) return new Response("No theme id in payload", { status: 200 });
+
+  // Retrieve the stored offline access token for this shop.
+  let session;
+  try {
+    const sessions = await sessionStorage.findSessionsByShop(shop);
+    session = sessions.find((s) => s.accessToken);
+  } catch (e) {
+    console.error("[themes/publish] session lookup failed:", e);
+    return new Response("Session lookup failed", { status: 200 });
+  }
+
+  if (!session) {
+    console.error("[themes/publish] No session found for", shop);
+    return new Response("No session", { status: 200 });
+  }
+
+  try {
+    await pushSnippetToTheme(shop, session.accessToken, themeId);
+    console.log(`[themes/publish] Snippet pushed to theme ${themeId} on ${shop}`);
+  } catch (e) {
+    console.error("[themes/publish] Push failed:", e);
+  }
+
+  return new Response("OK", { status: 200 });
 }
 
 // ─── Customer handler (unchanged logic) ─────────────────────────────────────
