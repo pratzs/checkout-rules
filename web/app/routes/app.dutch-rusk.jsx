@@ -162,7 +162,7 @@ export async function loader({ request }) {
 
 const FIND_DR_CUSTOMERS = `
   query FindDRCustomers($after: String) {
-    customers(first: 250, after: $after, query: "tag:dr-payment:weekly OR tag:dr-payment:fortnightly OR tag:dr-payment:monthly") {
+    customers(first: 250, after: $after, query: "tag:\"dr-payment:weekly\" OR tag:\"dr-payment:fortnightly\" OR tag:\"dr-payment:monthly\"") {
       nodes { id tags }
       pageInfo { hasNextPage endCursor }
     }
