@@ -5,14 +5,10 @@ const VALID_SCHEDULES = ["weekly", "fortnightly", "monthly"];
 export default extension(
   "purchase.checkout.actions.render-before",
   (root, api) => {
-    // Async only — we don't know the schedule until we read the customer's tag.
-    // Untagged (regular DTC) customers see nothing.
-    resolveSchedule(api)
-      .then((result) => {
-        if (!result) return;
-        root.appendChild(buildBanner(root, result));
-      })
-      .catch(() => {});
+    // appMetafields is pre-loaded by Shopify at checkout init — no async query needed.
+    const result = resolveSchedule(api);
+    if (!result) return;
+    root.appendChild(buildBanner(root, result));
   }
 );
 
@@ -47,22 +43,16 @@ function buildBanner(root, { schedule, dueDate }) {
 
 // ─── Schedule resolution ──────────────────────────────────────────────────────
 
-async function resolveSchedule(api) {
-  // Tags aren't accessible via Storefront API in checkout extensions.
-  // The webhook handler mirrors dr-payment:* tags into this app-owned metafield.
-  const { data } = await api.query(`
-    query GetCustomerPaymentSchedule {
-      customer {
-        metafield(namespace: "$app:dutch-rusk-checkout", key: "payment_schedule") {
-          value
-        }
-      }
-    }
-  `);
-
-  const schedule = data?.customer?.metafield?.value;
+function resolveSchedule(api) {
+  // appMetafields is pre-loaded by Shopify — declared in shopify.extension.toml.
+  // No async query needed; works even for B2B buyers without a storefront session.
+  const entry = (api.appMetafields.current ?? []).find(
+    (m) =>
+      m.metafield.namespace === "$app:dutch-rusk-checkout" &&
+      m.metafield.key === "payment_schedule"
+  );
+  const schedule = entry?.metafield?.value;
   if (!schedule || !VALID_SCHEDULES.includes(schedule)) return null;
-
   return { schedule, dueDate: calcDueDate(schedule) };
 }
 

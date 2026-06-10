@@ -9,3 +9,7 @@ handle = "dutch-rusk-payment-schedule"
   [[extensions.targeting]]
   module = "./src/index.js"
   target = "purchase.checkout.actions.render-before"
+
+  [[extensions.metafields]]
+  namespace = "$app:dutch-rusk-checkout"
+  key = "payment_schedule"

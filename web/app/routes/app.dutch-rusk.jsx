@@ -158,15 +158,74 @@ export async function loader({ request }) {
   }
 }
 
+// ─── GraphQL helpers (used in action only) ───────────────────────────────────
+
+const FIND_DR_CUSTOMERS = `
+  query FindDRCustomers($after: String) {
+    customers(first: 250, after: $after, query: "tag:dr-payment:weekly OR tag:dr-payment:fortnightly OR tag:dr-payment:monthly") {
+      nodes { id tags }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+const SET_PAYMENT_SCHEDULE = `
+  mutation SetPaymentSchedule($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      userErrors { field message }
+    }
+  }
+`;
+
+const DR_TAGS = ["dr-payment:weekly", "dr-payment:fortnightly", "dr-payment:monthly"];
+
 // ─── Action ───────────────────────────────────────────────────────────────────
 
 export async function action({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
 
   if (session.shop !== DUTCH_RUSK_SHOP) {
     return json({ ok: false, error: "Open this page from the Dutch Rusk store admin." }, { status: 403 });
   }
 
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "syncSchedules") {
+    try {
+      let cursor = null;
+      let synced = 0;
+      do {
+        const res = await admin.graphql(FIND_DR_CUSTOMERS, { variables: { after: cursor } });
+        const { data } = await res.json();
+        const page = data?.customers;
+        cursor = page?.pageInfo?.hasNextPage ? page.pageInfo.endCursor : null;
+
+        const metafields = (page?.nodes ?? []).map((c) => {
+          const tag = c.tags.find((t) => DR_TAGS.includes(t));
+          const schedule = tag ? tag.replace("dr-payment:", "") : "";
+          return {
+            ownerId: c.id,
+            namespace: "$app:dutch-rusk-checkout",
+            key: "payment_schedule",
+            type: "single_line_text_field",
+            value: schedule,
+          };
+        });
+
+        if (metafields.length > 0) {
+          await admin.graphql(SET_PAYMENT_SCHEDULE, { variables: { metafields } });
+          synced += metafields.length;
+        }
+      } while (cursor);
+
+      return json({ ok: true, intent: "syncSchedules", synced });
+    } catch (e) {
+      return json({ ok: false, intent: "syncSchedules", error: e.message }, { status: 500 });
+    }
+  }
+
+  // Default: push snippet
   try {
     const { themes } = await shopifyGet(session.shop, session.accessToken, "themes.json");
     const live = (themes ?? []).find((t) => t.role === "main");
@@ -187,11 +246,17 @@ export async function action({ request }) {
 export default function DutchRuskPage() {
   const { isDutchRusk, snippetExists, liveThemeId, error } = useLoaderData();
   const fetcher = useFetcher();
+  const syncFetcher = useFetcher();
 
   const isPushing = fetcher.state !== "idle";
   const result = fetcher.data;
-  const pushed = result?.ok === true;
-  const pushError = result?.ok === false ? result.error : null;
+  const pushed = result?.ok === true && result?.intent !== "syncSchedules";
+  const pushError = result?.ok === false && result?.intent !== "syncSchedules" ? result.error : null;
+
+  const isSyncing = syncFetcher.state !== "idle";
+  const syncResult = syncFetcher.data;
+  const syncDone = syncResult?.ok === true && syncResult?.intent === "syncSchedules";
+  const syncError = syncResult?.ok === false ? syncResult.error : null;
 
   return (
     <Page
@@ -276,10 +341,13 @@ export default function DutchRuskPage() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <Text variant="headingMd" as="h2">Payment schedule tags</Text>
-              <Text as="p" tone="subdued">
-                Add one tag per customer in <strong>Shopify Admin → Customers → [customer] → Tags</strong>.
-              </Text>
+              <BlockStack gap="200">
+                <Text variant="headingMd" as="h2">Payment schedule tags</Text>
+                <Text as="p" tone="subdued">
+                  Add one tag per customer in <strong>Shopify Admin → Customers → [customer] → Tags</strong>.
+                  After tagging, click <strong>Sync payment schedules</strong> to write the checkout metafield.
+                </Text>
+              </BlockStack>
 
               <BlockStack gap="300">
                 {[
@@ -296,6 +364,26 @@ export default function DutchRuskPage() {
                   </Box>
                 ))}
               </BlockStack>
+
+              {syncDone && (
+                <Banner tone="success">
+                  <Text as="p">Synced {syncResult.synced} customer(s). Payment schedule banners are now active at checkout.</Text>
+                </Banner>
+              )}
+              {syncError && (
+                <Banner tone="critical"><Text as="p">Sync failed: {syncError}</Text></Banner>
+              )}
+
+              <syncFetcher.Form method="post">
+                <input type="hidden" name="intent" value="syncSchedules" />
+                <Button
+                  loading={isSyncing}
+                  disabled={!isDutchRusk || isSyncing}
+                  submit
+                >
+                  {isSyncing ? "Syncing…" : "Sync payment schedules"}
+                </Button>
+              </syncFetcher.Form>
             </BlockStack>
           </Card>
         </Layout.Section>
