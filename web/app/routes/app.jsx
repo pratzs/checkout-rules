@@ -27,6 +27,7 @@ export default function AppLayout() {
           <a href="/app/rules/new-delivery">New Delivery Rule</a>
           <a href="/app/rules/new-payment">New Payment Rule</a>
           <a href="/app/b2b-payment-terms">B2B Payment Terms</a>
+          <a href="/app/dutch-rusk">Dutch Rusk</a>
         </NavMenu>
         <Outlet />
       </PolarisAppProvider>
