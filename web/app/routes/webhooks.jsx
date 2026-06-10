@@ -130,13 +130,26 @@ const SET_ORDER_PAYMENT_TERMS = `
   }
 `;
 
+// ─── Dutch Rusk payment schedule metafield sync ──────────────────────────────
+
+const DUTCH_RUSK_SHOP = "dutchrusk.myshopify.com";
+const DR_PAYMENT_TAGS = ["dr-payment:weekly", "dr-payment:fortnightly", "dr-payment:monthly"];
+
+const SET_DR_PAYMENT_SCHEDULE = `
+  mutation SetDRPaymentSchedule($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      userErrors { field message }
+    }
+  }
+`;
+
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 export async function action({ request }) {
   const { topic, payload, admin, shop } = await authenticate.webhook(request);
 
   if (topic === "CUSTOMERS_UPDATE" || topic === "CUSTOMERS_CREATE") {
-    return handleCustomerWebhook(admin, payload);
+    return handleCustomerWebhook(admin, payload, shop);
   }
 
   if (topic === "ORDERS_CREATE") {
@@ -168,7 +181,7 @@ export async function action({ request }) {
 
 // ─── Customer handler ─────────────────────────────────────────────────────────
 
-async function handleCustomerWebhook(admin, payload) {
+async function handleCustomerWebhook(admin, payload, shop) {
   if (!admin) return new Response("No admin context", { status: 200 });
 
   const customerId = payload?.id;
@@ -200,6 +213,24 @@ async function handleCustomerWebhook(admin, payload) {
   }
 
   await syncSingleCustomer(admin, customerId, currentTags);
+
+  // Dutch Rusk: mirror the dr-payment:* tag into an app-owned metafield so
+  // the checkout extension can read it (Storefront API doesn't expose tags).
+  if (shop === DUTCH_RUSK_SHOP) {
+    const scheduleTag = currentTags.find((t) => DR_PAYMENT_TAGS.includes(t));
+    const schedule = scheduleTag ? scheduleTag.replace("dr-payment:", "") : "";
+    admin.graphql(SET_DR_PAYMENT_SCHEDULE, {
+      variables: {
+        metafields: [{
+          ownerId: `gid://shopify/Customer/${customerId}`,
+          namespace: "$app:dutch-rusk-checkout",
+          key: "payment_schedule",
+          type: "single_line_text_field",
+          value: schedule,
+        }],
+      },
+    }).catch((e) => console.error("[DR] payment_schedule metafield write failed:", e));
+  }
 
   return new Response("OK", { status: 200 });
 }

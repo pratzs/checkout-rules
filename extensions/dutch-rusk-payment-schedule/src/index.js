@@ -1,6 +1,6 @@
 import { extension, Banner, Text, BlockStack } from "@shopify/ui-extensions/checkout";
 
-const SCHEDULE_TAGS = ["dr-payment:weekly", "dr-payment:fortnightly", "dr-payment:monthly"];
+const VALID_SCHEDULES = ["weekly", "fortnightly", "monthly"];
 
 export default extension(
   "purchase.checkout.actions.render-before",
@@ -51,19 +51,21 @@ async function resolveSchedule(api) {
   const customerId = api.buyerIdentity?.customer?.current?.id;
   if (!customerId) return null;
 
+  // Tags aren't accessible via Storefront API in checkout extensions.
+  // The webhook handler mirrors dr-payment:* tags into this app-owned metafield.
   const { data } = await api.query(`
     query GetCustomerPaymentSchedule {
       customer {
-        tags
+        metafield(namespace: "$app:dutch-rusk-checkout", key: "payment_schedule") {
+          value
+        }
       }
     }
   `);
 
-  const tags = data?.customer?.tags ?? [];
-  const scheduleTag = tags.find((t) => SCHEDULE_TAGS.includes(t));
-  if (!scheduleTag) return null;
+  const schedule = data?.customer?.metafield?.value;
+  if (!schedule || !VALID_SCHEDULES.includes(schedule)) return null;
 
-  const schedule = scheduleTag.replace("dr-payment:", "");
   return { schedule, dueDate: calcDueDate(schedule) };
 }
 
